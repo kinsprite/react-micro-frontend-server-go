@@ -20,6 +20,13 @@ type Metadata struct {
 	Extra MetadataExtra `json:"extra"`
 }
 
+// MetadataInfoForRequest Metadata info for user request
+type MetadataInfoForRequest struct {
+	FrameworkApp     MetadataApp
+	FrameworkRuntime string // content of 'runtime-framework.xxx.js'
+	OtherApps        []MetadataApp
+}
+
 // GitRevision Git revision has tag or short SHA
 type GitRevision struct {
 	Tag   string `json:"tag"`
@@ -28,11 +35,26 @@ type GitRevision struct {
 
 // AppManifest App manifest from 'rmf-manifest.json'
 type AppManifest struct {
-	Entrypoints []string `json:"entrypoints"` // NOT implement yet
+	Dependencies []string `json:"dependencies"`
+	Entrypoints  []string `json:"entrypoints"` // NOT implement yet
 	// Files       map[string]string `json:"files"`
 	GitRevision   GitRevision `json:"gitRevision"`
 	LibraryExport string      `json:"libraryExport"`
 	PublicPath    string      `json:"publicPath"`
 	Routes        []string    `json:"routes"`
+	Render        string      `json:"render"`
 	ServiceName   string      `json:"serviceName"`
+}
+
+// ConvertToMetadataApp Convert to MetadataApp
+func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
+	app := MetadataApp{
+		ID:           manifest.ServiceName,
+		Dependencies: manifest.Dependencies,
+		Entries:      manifest.Entrypoints,
+		Routes:       manifest.Routes,
+		Render:       manifest.Render,
+	}
+
+	return &app
 }

@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"path"
 	"strings"
+	"time"
 )
 
 // AppManifestCache AppManifest Cache
@@ -88,4 +90,49 @@ func readRuntimeContent(baseDir string, entry string) (string, error) {
 	}
 
 	return string(content[:]), err
+}
+
+// GenerateMetadata Generate Metadata for user request
+func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) *MetadataInfoForRequest {
+	info := &MetadataInfoForRequest{}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for serviceName, manifests := range cache.ServiceManifests {
+		mLen := len(manifests)
+		selIdx := 0
+
+		if mLen > 1 {
+			selIdx = r.Intn(mLen)
+		}
+
+		app := manifests[selIdx].ConvertToMetadataApp()
+
+		if serviceName == frameworkServiceName {
+			cache.AppendFrameworkAppInfo(info, app, inlineRuntime)
+		} else {
+			info.OtherApps = append(info.OtherApps, *app)
+		}
+	}
+
+	return info
+}
+
+// AppendFrameworkAppInfo Append Framework App Info
+func (cache *AppManifestCache) AppendFrameworkAppInfo(
+	info *MetadataInfoForRequest, frameApp *MetadataApp, inlineRuntime bool) {
+	if !inlineRuntime {
+		info.FrameworkApp = *frameApp
+		return
+	}
+
+	for i, entry := range frameApp.Entries {
+		if strings.HasPrefix(entry, frameworkRuntimeFilePrefix) {
+			if content, ok := cache.FrameworkRuntimes[entry]; ok {
+				info.FrameworkRuntime = content
+				frameApp.Entries = append(frameApp.Entries[:i], frameApp.Entries[i+1:]...)
+				info.FrameworkApp = *frameApp
+				return
+			}
+		}
+	}
 }

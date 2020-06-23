@@ -24,6 +24,10 @@ const (
 	frameworkRuntimeFilePrefix = "runtime-framework."
 )
 
+var globalExtra = MetadataExtra{
+	DefaultRoute: "/home",
+}
+
 var listenAddress = "127.0.0.1:8080"
 var publishRoot = "http://localhost:8080/"
 var startupInitDir = "."
@@ -118,22 +122,21 @@ func main() {
 	})
 
 	router.GET("/api/metadata/info", func(c *gin.Context) {
-		data := map[string]interface{}{
-			"apps": []string{},
-			"extra": map[string]interface{}{
-				"defaultRoute": "/home",
-			},
-		}
+		info := cache.GenerateMetadata(true, true)
 
-		// /JSONP?callback=x
-		// return ：x({\"foo\":\"bar\"})
-		c.JSONP(http.StatusOK, data)
+		c.JSONP(http.StatusOK, &Metadata{
+			Apps:  info.OtherApps,
+			Extra: globalExtra,
+		})
 	})
 
 	if serveStaticFiles {
 		for _, appDir := range walkAppsResult.AppDirs {
 			router.Static("/"+appDir, path.Join(startupInitDir, appDir))
 		}
+
+		router.StaticFile("/favicon.ico", path.Join(startupInitDir, "favicon.ico"))
+		router.StaticFile("/", path.Join(startupInitDir, "index.html"))
 	}
 
 	fmt.Println("Serve on: ", listenAddress)
