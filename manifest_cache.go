@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -108,7 +109,9 @@ func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) 
 		app := manifests[selIdx].ConvertToMetadataApp()
 
 		if serviceName == frameworkServiceName {
+			fmt.Printf("Frame manifests BEFORE: %+v\n", *manifests[selIdx])
 			cache.AppendFrameworkAppInfo(info, app, inlineRuntime)
+			fmt.Printf("Frame manifests AFTER: %+v\n", *manifests[selIdx])
 		} else {
 			info.OtherApps = append(info.OtherApps, *app)
 		}
@@ -120,19 +123,24 @@ func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) 
 // AppendFrameworkAppInfo Append Framework App Info
 func (cache *AppManifestCache) AppendFrameworkAppInfo(
 	info *MetadataInfoForRequest, frameApp *MetadataApp, inlineRuntime bool) {
+	// fmt.Printf("FrameApp: %+v\n", frameApp)
 	if !inlineRuntime {
 		info.FrameworkApp = *frameApp
 		return
 	}
 
 	for i, entry := range frameApp.Entries {
-		if strings.HasPrefix(entry, frameworkRuntimeFilePrefix) {
+		if strings.Contains(entry, frameworkRuntimeFilePrefix) {
 			if content, ok := cache.FrameworkRuntimes[entry]; ok {
 				info.FrameworkRuntime = content
-				frameApp.Entries = append(frameApp.Entries[:i], frameApp.Entries[i+1:]...)
+				frameAppEntries := append([]string{}, frameApp.Entries[:i]...)
+				frameAppEntries = append(frameAppEntries, frameApp.Entries[i+1:]...)
 				info.FrameworkApp = *frameApp
+				info.FrameworkApp.Entries = frameAppEntries
 				return
 			}
 		}
 	}
+
+	info.FrameworkApp = *frameApp
 }

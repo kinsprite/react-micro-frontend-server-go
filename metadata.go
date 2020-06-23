@@ -1,5 +1,11 @@
 package main
 
+import (
+	"strings"
+
+	"encoding/json"
+)
+
 // MetadataExtra Extra metadata
 type MetadataExtra struct {
 	DefaultRoute string `json:"defaultRoute"`
@@ -57,4 +63,38 @@ func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 	}
 
 	return &app
+}
+
+// GenerateIndexHTML Generate index Html for SPA
+func (info *MetadataInfoForRequest) GenerateIndexHTML() string {
+	// framework
+	styleLinks := ``
+	scripts := ``
+
+	for _, entry := range info.FrameworkApp.Entries {
+		if strings.HasSuffix(entry, ".css") {
+			styleLinks += `<link href="` + entry + `" rel="stylesheet">`
+		} else if strings.HasSuffix(entry, ".js") {
+			scripts += `<script src="` + entry + `"></script>`
+		}
+	}
+
+	inlineScripts := `<script>` + info.FrameworkRuntime + `</script>`
+
+	// other apps
+	metadata := Metadata{Apps: info.OtherApps, Extra: globalExtra}
+	jsonpData, _ := json.Marshal(&metadata)
+	jsonpScript := `<script>rmfMetadataCallback(` + string(jsonpData) + `)</script>`
+
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<link rel="icon" href="/favicon.ico"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#000000"/>
+<meta name="description" content="Web site for React Micro Frontend demo"/>
+<link rel="apple-touch-icon" href="/logo192.png"/>
+<title>React Micro Frontend</title>
+` + styleLinks + `</head><body><noscript>You need to enable JavaScript to run this app.</noscript>
+<div id="root"></div><script>var rmfMetadataJSONP = {apps:[], extra: {}};
+function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>
+` + jsonpScript + inlineScripts + scripts + `</body></html>`
 }

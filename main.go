@@ -136,8 +136,15 @@ func main() {
 		}
 
 		router.StaticFile("/favicon.ico", path.Join(startupInitDir, "favicon.ico"))
-		router.StaticFile("/", path.Join(startupInitDir, "index.html"))
+		router.StaticFile("/logo192.png", path.Join(startupInitDir, "logo192.png"))
 	}
+
+	// SPA
+	router.NoRoute(func(c *gin.Context) {
+		info := cache.GenerateMetadata(true, true)
+		// fmt.Printf("INFO %+v\n", info)
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(info.GenerateIndexHTML()))
+	})
 
 	fmt.Println("Serve on: ", listenAddress)
 	router.Run(listenAddress)
