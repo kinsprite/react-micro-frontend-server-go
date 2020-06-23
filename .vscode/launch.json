@@ -14,6 +14,7 @@
                 "RMF_LISTEN_ADDRESS": "127.0.0.1:8090",
                 "RMF_PUBLISH_ROOT": "http://127.0.0.1:8090/",
                 "RMF_STARTUP_INIT_DIR": "${workspaceRoot}",
+                "RMF_SERVE_STATIC_FILES": "true",
             },
             "args": []
         }

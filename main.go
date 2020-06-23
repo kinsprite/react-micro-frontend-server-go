@@ -2,18 +2,32 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
+// WalkAppsResult the result while walk files
+type WalkAppsResult struct {
+	AppDirs       []string
+	ManifestFiles []string
+}
+
+const (
+	appDirPrefix               = "rmf-"
+	manifestFileName           = "rmf-manifest.json"
+	frameworkServiceName       = "framework"
+	frameworkRuntimeFilePrefix = "runtime-framework."
+)
+
 var listenAddress = "127.0.0.1:8080"
 var publishRoot = "http://localhost:8080/"
 var startupInitDir = "."
+var serveStaticFiles = true
 
 func init() {
 	addr := os.Getenv("RMF_LISTEN_ADDRESS")
@@ -33,63 +47,68 @@ func init() {
 	if dir != "" {
 		startupInitDir = dir
 	}
-}
-func prepareTestDirTree(tree string) (string, error) {
-	tmpDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		return "", fmt.Errorf("error creating temp directory: %v\n", err)
-	}
 
-	err = os.MkdirAll(filepath.Join(tmpDir, tree), 0755)
-	if err != nil {
-		os.RemoveAll(tmpDir)
-		return "", err
-	}
+	serveStatic := os.Getenv("RMF_SERVE_STATIC_FILES")
 
-	return tmpDir, nil
+	if serveStatic != "" {
+		serveStaticFiles = serveStatic != "false"
+	}
 }
 
-func walkMain() []string {
-	tmpDir := '.'
-	subDirToSkip := ".git"
-	apps := []string{}
+func walkAppFiles(rootDir string) WalkAppsResult {
+	result := WalkAppsResult{}
 
-	fmt.Println("On Unix:")
-	err := filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
 			return err
 		}
 
+		isDir := info.IsDir()
 		name := info.Name()
+		// fmt.Printf("Find path: %+v\n", path)
 
-		if info.IsDir() && strings.HasPrefix(name, "rmf-") {
-			if path == name {
-				fmt.Printf("Find dir: %+v \n", name)
-				apps = append(apps, name)
-			} else {
-				return filepath.SkipDir
-			}
-		}
-
-		if info.IsDir() && info.Name() == subDirToSkip {
-			fmt.Printf("skipping a dir without errors: %+v \n", info.Name())
+		// Only keep 'rmf-xxx-yyy' dir at root
+		if isDir && (path != ".") && !strings.HasPrefix(path, appDirPrefix) {
 			return filepath.SkipDir
 		}
-		fmt.Printf("visited file or dir: %q\n", path)
+
+		// Find app's dir
+		if isDir && path == name && strings.HasPrefix(name, appDirPrefix) {
+			// fmt.Printf("Find app dir: %+v\n", name)
+			result.AppDirs = append(result.AppDirs, name)
+		}
+
+		// Find 'rmf-manifest.json'
+		if !isDir && name == manifestFileName {
+			// fmt.Printf("Find manifest: %+v\n", path)
+			result.ManifestFiles = append(result.ManifestFiles, path)
+		}
+
 		return nil
 	})
 
 	if err != nil {
-		fmt.Printf("error walking the path %q: %v\n", tmpDir, err)
-		return apps
+		fmt.Printf("error walking the path %q: %v\n", rootDir, err)
 	}
 
-	return apps
+	return result
 }
 
 func main() {
-	apps := walkMain()
+	walkAppsResult := walkAppFiles(startupInitDir)
+	// fmt.Printf("WalkAppsResult: %v\", walkAppsResult)
+	cache := NewAppManifestCache()
+
+	for _, filename := range walkAppsResult.ManifestFiles {
+		cache.LoadAppManifest(path.Join(startupInitDir, filename))
+	}
+
+	cache.CacheFrameworkRuntimes(startupInitDir)
+
+	// fmt.Printf("Cache ServiceManifests: %+v\n", cache.ServiceManifests)
+	// fmt.Printf("Cache FrameworkRuntimes: %+v\n", cache.FrameworkRuntimes)
+
 	router := gin.Default()
 
 	router.GET("/healthz", func(c *gin.Context) {
@@ -107,14 +126,16 @@ func main() {
 		}
 
 		// /JSONP?callback=x
-		// 将输出：x({\"foo\":\"bar\"})
+		// return ：x({\"foo\":\"bar\"})
 		c.JSONP(http.StatusOK, data)
 	})
 
-	for _, app := range apps {
-		router.Static("/"+app, startupInitDir+"/"+app)
+	if serveStaticFiles {
+		for _, appDir := range walkAppsResult.AppDirs {
+			router.Static("/"+appDir, path.Join(startupInitDir, appDir))
+		}
 	}
 
-	fmt.Println("Serve on : ", listenAddress)
+	fmt.Println("Serve on: ", listenAddress)
 	router.Run(listenAddress)
 }

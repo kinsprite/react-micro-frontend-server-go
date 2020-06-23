@@ -8,15 +8,18 @@ import (
 	"strings"
 )
 
-const (
-	frameworkServiceName       = "framework"
-	frameworkRuntimeFilePrefix = "runtime-framework."
-)
-
 // AppManifestCache AppManifest Cache
 type AppManifestCache struct {
 	FrameworkRuntimes map[string]string // URL to runtime JS contents
 	ServiceManifests  map[string][]*AppManifest
+}
+
+// NewAppManifestCache new an AppManifestCache
+func NewAppManifestCache() *AppManifestCache {
+	return &AppManifestCache{
+		FrameworkRuntimes: map[string]string{},
+		ServiceManifests:  map[string][]*AppManifest{},
+	}
 }
 
 // LoadAppManifest cache each Manifest file
@@ -38,6 +41,7 @@ func (cache *AppManifestCache) LoadAppManifest(filename string) {
 
 	appManifests := cache.ServiceManifests[manifest.ServiceName]
 	cache.ServiceManifests[manifest.ServiceName] = append(appManifests, &manifest)
+	// fmt.Printf("manifest: %+v\n", manifest)
 }
 
 // CacheFrameworkRuntimes cache framework runtimes
@@ -52,9 +56,10 @@ func (cache *AppManifestCache) CacheFrameworkRuntimes(baseDir string) {
 	for _, manifest := range appManifests {
 		for _, entry := range manifest.Entrypoints {
 			if strings.Contains(entry, frameworkRuntimeFilePrefix) {
+				// fmt.Printf("Framework runtime entry: %+v\n", entry)
 				contents, err := readRuntimeContent(baseDir, entry)
 
-				if err != nil {
+				if err == nil {
 					cache.FrameworkRuntimes[entry] = contents
 				}
 			}
