@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -29,7 +30,6 @@ var globalExtra = MetadataExtra{
 }
 
 var listenAddress = "127.0.0.1:8080"
-var publishRoot = "http://localhost:8080/"
 var startupInitDir = "."
 var serveStaticFiles = true
 
@@ -38,12 +38,6 @@ func init() {
 
 	if addr != "" {
 		listenAddress = addr
-	}
-
-	url := os.Getenv("RMF_PUBLISH_ROOT")
-
-	if url != "" {
-		publishRoot = url
 	}
 
 	dir := os.Getenv("RMF_STARTUP_INIT_DIR")
@@ -56,6 +50,26 @@ func init() {
 
 	if serveStatic != "" {
 		serveStaticFiles = serveStatic != "false"
+	}
+}
+
+func parseFlags() {
+	listeningAddressFlag := flag.String("RMF_LISTEN_ADDRESS", "", "Server listening address")
+	startupInitDirFlag := flag.String("RMF_STARTUP_INIT_DIR", "", "Search micro frontend manifests in the dir")
+	serveStaticFileFlag := flag.String("RMF_SERVE_STATIC_FILES", "", "Blog updating script file")
+
+	flag.Parse()
+
+	if *listeningAddressFlag != "" {
+		listenAddress = *listeningAddressFlag
+	}
+
+	if *startupInitDirFlag != "" {
+		startupInitDir = *startupInitDirFlag
+	}
+
+	if *serveStaticFileFlag != "" {
+		serveStaticFiles = *serveStaticFileFlag != "false"
 	}
 }
 
@@ -100,6 +114,8 @@ func walkAppFiles(rootDir string) WalkAppsResult {
 }
 
 func main() {
+	parseFlags()
+
 	walkAppsResult := walkAppFiles(startupInitDir)
 	// fmt.Printf("WalkAppsResult: %v\", walkAppsResult)
 	cache := NewAppManifestCache()
