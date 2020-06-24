@@ -13,20 +13,14 @@ import (
 
 // AppManifestCache AppManifest Cache
 type AppManifestCache struct {
-	// FrameworkRuntimes map[string]string // entry URL to runtime JS contents
-	// ServiceManifests  map[string][]*AppManifest // serverName to []*AppManifest
-	// rwMtx             *sync.RWMutex
-	FrameworkRuntimes sync.Map
-	ServiceManifests  sync.Map
+	FrameworkRuntimes sync.Map // entry URL to runtime JS contents, as map[key string]string
+	ServiceManifests  sync.Map // serverName to []*AppManifest, as map[key string] []*AppManifest
+	ServiceMutexes    sync.Map //  serverName to *Mutex, for per app's Install and Uninstall
 }
 
 // NewAppManifestCache new an AppManifestCache
 func NewAppManifestCache() *AppManifestCache {
-	return &AppManifestCache{
-		// FrameworkRuntimes: map[string]string{},
-		// ServiceManifests:  map[string][]*AppManifest{},
-		// rwMtx: new(sync.RWMutex),
-	}
+	return &AppManifestCache{}
 }
 
 // LoadAppManifest cache each Manifest file
@@ -116,6 +110,11 @@ func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) 
 		manifests := value.([]*AppManifest)
 
 		mLen := len(manifests)
+
+		if mLen == 0 {
+			return true
+		}
+
 		selIdx := 0
 
 		if mLen > 1 {
@@ -163,4 +162,69 @@ func (cache *AppManifestCache) AppendFrameworkAppInfo(
 	}
 
 	info.FrameworkApp = *frameApp
+}
+
+// InstallAppVersion Install an new App version after the static files have been deployed.
+func (cache *AppManifestCache) InstallAppVersion(app *AppInstallParam) bool {
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.Manifest.ServiceName, &sync.Mutex{})
+	mtx := mtxValue.(*sync.Mutex)
+
+	mtx.Lock()
+	defer mtx.Unlock()
+
+	// Save the runtime thunk's content first
+	for url, content := range app.FrameworkRuntimes {
+		cache.FrameworkRuntimes.Store(url, content)
+	}
+
+	// Save the manifest
+	value, ok := cache.ServiceManifests.Load(app.Manifest.ServiceName)
+	appManifests := []*AppManifest{}
+
+	if ok {
+		// DON'T change the old slice
+		appManifests = append(appManifests, value.([]*AppManifest)...)
+	}
+
+	appManifests = append(appManifests, &app.Manifest)
+	cache.ServiceManifests.Store(app.Manifest.ServiceName, appManifests)
+
+	return true
+}
+
+// UninstallAppVersion Uninstall an delployed App version. NOTE: Leave cache.FrameworkRuntimes unchanged.
+func (cache *AppManifestCache) UninstallAppVersion(app *AppUninstallParam) bool {
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.ServiceName, &sync.Mutex{})
+	mtx := mtxValue.(*sync.Mutex)
+
+	mtx.Lock()
+	defer mtx.Unlock()
+
+	value, ok := cache.ServiceManifests.Load(app.ServiceName)
+
+	if !ok {
+		return false
+	}
+
+	appManifests := value.([]*AppManifest)
+
+	// Find the app by GitRevision
+	isFound := false
+	newManifests := []*AppManifest{}
+	last := 0
+
+	for i, manifest := range appManifests {
+		if manifest.GitRevision.Equal(&app.GitRevision) {
+			isFound = true
+			newManifests = append(newManifests, appManifests[last:i]...)
+			last = i + 1
+		}
+	}
+
+	if isFound {
+		newManifests = append(newManifests, appManifests[last:]...)
+		cache.ServiceManifests.Store(app.ServiceName, newManifests)
+	}
+
+	return isFound
 }

@@ -130,6 +130,33 @@ func main() {
 		})
 	})
 
+	router.POST("/api/metadata/install-app-version", func(c *gin.Context) {
+		var param AppInstallParam
+
+		if err := c.BindJSON(&param); err != nil {
+			return
+		}
+
+		ok := cache.InstallAppVersion(&param)
+
+		c.JSON(http.StatusOK, gin.H{
+			"install": ok,
+		})
+	})
+
+	router.POST("/api/metadata/uninstall-app-version", func(c *gin.Context) {
+		var param AppUninstallParam
+
+		if err := c.BindJSON(&param); err != nil {
+			return
+		}
+
+		ok := cache.UninstallAppVersion(&param)
+		c.JSON(http.StatusOK, gin.H{
+			"uninstall": ok,
+		})
+	})
+
 	if serveStaticFiles {
 		for _, appDir := range walkAppsResult.AppDirs {
 			router.Static("/"+appDir, path.Join(startupInitDir, appDir))

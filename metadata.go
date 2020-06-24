@@ -52,6 +52,23 @@ type AppManifest struct {
 	ServiceName   string      `json:"serviceName"`
 }
 
+// AppInstallParam App install param
+type AppInstallParam struct {
+	Manifest          AppManifest       `json:"manifest"`
+	FrameworkRuntimes map[string]string `json:"frameworkRuntimes"`
+}
+
+// AppUninstallParam App uninstall param
+type AppUninstallParam struct {
+	GitRevision GitRevision `json:"gitRevision"`
+	ServiceName string      `json:"serviceName"`
+}
+
+// Equal Equal
+func (git *GitRevision) Equal(other *GitRevision) bool {
+	return git.Tag == other.Tag && git.Short == other.Short
+}
+
 // ConvertToMetadataApp Convert to MetadataApp
 func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 	app := MetadataApp{
