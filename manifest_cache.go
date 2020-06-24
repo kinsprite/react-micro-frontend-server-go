@@ -2,26 +2,30 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
 // AppManifestCache AppManifest Cache
 type AppManifestCache struct {
-	FrameworkRuntimes map[string]string // URL to runtime JS contents
-	ServiceManifests  map[string][]*AppManifest
+	// FrameworkRuntimes map[string]string // entry URL to runtime JS contents
+	// ServiceManifests  map[string][]*AppManifest // serverName to []*AppManifest
+	// rwMtx             *sync.RWMutex
+	FrameworkRuntimes sync.Map
+	ServiceManifests  sync.Map
 }
 
 // NewAppManifestCache new an AppManifestCache
 func NewAppManifestCache() *AppManifestCache {
 	return &AppManifestCache{
-		FrameworkRuntimes: map[string]string{},
-		ServiceManifests:  map[string][]*AppManifest{},
+		// FrameworkRuntimes: map[string]string{},
+		// ServiceManifests:  map[string][]*AppManifest{},
+		// rwMtx: new(sync.RWMutex),
 	}
 }
 
@@ -42,19 +46,28 @@ func (cache *AppManifestCache) LoadAppManifest(filename string) {
 		return
 	}
 
-	appManifests := cache.ServiceManifests[manifest.ServiceName]
-	cache.ServiceManifests[manifest.ServiceName] = append(appManifests, &manifest)
+	value, ok := cache.ServiceManifests.Load(manifest.ServiceName)
+
+	appManifests := []*AppManifest{}
+
+	if ok {
+		appManifests = value.([]*AppManifest)
+	}
+
+	cache.ServiceManifests.Store(manifest.ServiceName, append(appManifests, &manifest))
 	// fmt.Printf("manifest: %+v\n", manifest)
 }
 
 // CacheFrameworkRuntimes cache framework runtimes
 func (cache *AppManifestCache) CacheFrameworkRuntimes(baseDir string) {
-	appManifests, ok := cache.ServiceManifests[frameworkServiceName]
+	value, ok := cache.ServiceManifests.Load(frameworkServiceName)
 
 	if !ok {
 		log.Printf("[ERROR]  Cannot find manifest for service '%s'\n", frameworkServiceName)
 		return
 	}
+
+	appManifests := value.([]*AppManifest)
 
 	for _, manifest := range appManifests {
 		for _, entry := range manifest.Entrypoints {
@@ -63,7 +76,7 @@ func (cache *AppManifestCache) CacheFrameworkRuntimes(baseDir string) {
 				contents, err := readRuntimeContent(baseDir, entry)
 
 				if err == nil {
-					cache.FrameworkRuntimes[entry] = contents
+					cache.FrameworkRuntimes.Store(entry, contents)
 				}
 			}
 		}
@@ -98,7 +111,10 @@ func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) 
 	info := &MetadataInfoForRequest{}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	for serviceName, manifests := range cache.ServiceManifests {
+	cache.ServiceManifests.Range(func(key, value interface{}) bool {
+		serviceName := key.(string)
+		manifests := value.([]*AppManifest)
+
 		mLen := len(manifests)
 		selIdx := 0
 
@@ -109,13 +125,15 @@ func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) 
 		app := manifests[selIdx].ConvertToMetadataApp()
 
 		if serviceName == frameworkServiceName {
-			fmt.Printf("Frame manifests BEFORE: %+v\n", *manifests[selIdx])
+			// fmt.Printf("Frame manifests BEFORE: %+v\n", *manifests[selIdx])
 			cache.AppendFrameworkAppInfo(info, app, inlineRuntime)
-			fmt.Printf("Frame manifests AFTER: %+v\n", *manifests[selIdx])
+			// fmt.Printf("Frame manifests AFTER: %+v\n", *manifests[selIdx])
 		} else {
 			info.OtherApps = append(info.OtherApps, *app)
 		}
-	}
+
+		return true
+	})
 
 	return info
 }
@@ -131,8 +149,10 @@ func (cache *AppManifestCache) AppendFrameworkAppInfo(
 
 	for i, entry := range frameApp.Entries {
 		if strings.Contains(entry, frameworkRuntimeFilePrefix) {
-			if content, ok := cache.FrameworkRuntimes[entry]; ok {
-				info.FrameworkRuntime = content
+			content, ok := cache.FrameworkRuntimes.Load(entry)
+
+			if ok {
+				info.FrameworkRuntime = content.(string)
 				frameAppEntries := append([]string{}, frameApp.Entries[:i]...)
 				frameAppEntries = append(frameAppEntries, frameApp.Entries[i+1:]...)
 				info.FrameworkApp = *frameApp
