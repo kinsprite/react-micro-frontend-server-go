@@ -89,9 +89,9 @@ func (info *MetadataInfoForRequest) GenerateIndexHTML() string {
 	scripts := ``
 
 	for _, entry := range info.FrameworkApp.Entries {
-		if strings.HasSuffix(entry, ".css") {
+		if strings.HasSuffix(strings.ToLower(entry), ".css") {
 			styleLinks += `<link href="` + entry + `" rel="stylesheet">`
-		} else if strings.HasSuffix(entry, ".js") {
+		} else if strings.HasSuffix(strings.ToLower(entry), ".js") {
 			scripts += `<script src="` + entry + `"></script>`
 		}
 	}
