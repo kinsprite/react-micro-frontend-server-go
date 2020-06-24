@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -76,10 +77,21 @@ func parseFlags() {
 func walkAppFiles(rootDir string) WalkAppsResult {
 	result := WalkAppsResult{}
 
+	rootLen := len(rootDir)
+
+	if rootDir[rootLen-1] != '/' && rootDir[rootLen-1] != '\\' {
+		rootLen++
+	}
+
 	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
 			return err
+		}
+
+		// just continue rootDir
+		if path == rootDir {
+			return nil
 		}
 
 		isDir := info.IsDir()
@@ -87,12 +99,18 @@ func walkAppFiles(rootDir string) WalkAppsResult {
 		// fmt.Printf("Find path: %+v\n", path)
 
 		// Only keep 'rmf-xxx-yyy' dir at root
-		if isDir && (path != ".") && !strings.HasPrefix(path, appDirPrefix) {
+		relativePath, err := filepath.Rel(rootDir, path)
+
+		if err != nil {
+			log.Printf("[ERROR]  Cannot get the relative path for: %s\n", path)
+		}
+
+		if isDir && !strings.HasPrefix(relativePath, appDirPrefix) {
 			return filepath.SkipDir
 		}
 
 		// Find app's dir
-		if isDir && path == name && strings.HasPrefix(name, appDirPrefix) {
+		if isDir && relativePath == name && strings.HasPrefix(name, appDirPrefix) {
 			// fmt.Printf("Find app dir: %+v\n", name)
 			result.AppDirs = append(result.AppDirs, name)
 		}
@@ -121,7 +139,7 @@ func main() {
 	cache := NewAppManifestCache()
 
 	for _, filename := range walkAppsResult.ManifestFiles {
-		cache.LoadAppManifest(path.Join(startupInitDir, filename))
+		cache.LoadAppManifest(filename)
 	}
 
 	cache.CacheFrameworkRuntimes(startupInitDir)
