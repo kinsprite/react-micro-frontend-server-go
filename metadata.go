@@ -107,9 +107,9 @@ func (info *MetadataInfoForRequest) GenerateIndexHTML() string {
 <link rel="icon" href="/favicon.ico"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="theme-color" content="#000000"/>
-<meta name="description" content="Web site for React Micro Frontend demo"/>
+<meta name="description" content="Web site for React Micro Frontends demo"/>
 <link rel="apple-touch-icon" href="/logo192.png"/>
-<title>React Micro Frontend</title>
+<title>React Micro Frontends</title>
 ` + styleLinks + `</head><body><noscript>You need to enable JavaScript to run this app.</noscript>
 <div id="root"></div><script>var rmfMetadataJSONP = {apps:[], extra: {}};
 function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>
