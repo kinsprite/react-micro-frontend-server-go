@@ -11,13 +11,18 @@ type MetadataExtra struct {
 	DefaultRoute string `json:"defaultRoute"`
 }
 
+type MetadataRender struct {
+	RenderID     string `json:"renderId"`
+	RoutePath    string `json:"routePath"`
+	ComponentKey string `json:"componentKey"`
+}
+
 // MetadataApp App's metadata
 type MetadataApp struct {
-	ID           string   `json:"id"`
-	Dependencies []string `json:"dependencies"` // NOT implement yet
-	Entries      []string `json:"entries"`
-	Routes       []string `json:"routes"`
-	Render       string   `json:"render"` // render ID
+	ID           string           `json:"id"`
+	Dependencies []string         `json:"dependencies"` // NOT implement yet
+	Entries      []string         `json:"entries"`
+	Renders      []MetadataRender `json:"renders"`
 }
 
 // Metadata the all metadata
@@ -44,12 +49,11 @@ type AppManifest struct {
 	Dependencies []string `json:"dependencies"`
 	Entrypoints  []string `json:"entrypoints"` // NOT implement yet
 	// Files       map[string]string `json:"files"`
-	GitRevision   GitRevision `json:"gitRevision"`
-	LibraryExport string      `json:"libraryExport"`
-	PublicPath    string      `json:"publicPath"`
-	Routes        []string    `json:"routes"`
-	Render        string      `json:"render"`
-	ServiceName   string      `json:"serviceName"`
+	GitRevision   GitRevision      `json:"gitRevision"`
+	LibraryExport string           `json:"libraryExport"`
+	PublicPath    string           `json:"publicPath"`
+	Renders       []MetadataRender `json:"renders"`
+	ServiceName   string           `json:"serviceName"`
 }
 
 // AppInstallParam App install param
@@ -75,8 +79,7 @@ func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 		ID:           manifest.ServiceName,
 		Dependencies: manifest.Dependencies,
 		Entries:      manifest.Entrypoints,
-		Routes:       manifest.Routes,
-		Render:       manifest.Render,
+		Renders:      manifest.Renders,
 	}
 
 	return &app
