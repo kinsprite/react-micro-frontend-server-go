@@ -27,13 +27,10 @@ const (
 	frameworkRuntimeFilePrefix = "runtime-framework."
 )
 
-var globalExtra = MetadataExtra{
-	DefaultRoute: "/home",
-}
-
 var listenAddress = "127.0.0.1:8080"
 var startupInitDir = "."
 var serveStaticFiles = true
+var siteConfigFile = ""
 
 func init() {
 	addr := os.Getenv("RMF_LISTEN_ADDRESS")
@@ -53,12 +50,19 @@ func init() {
 	if serveStatic != "" {
 		serveStaticFiles = serveStatic != "false"
 	}
+
+	configFile := os.Getenv("RMF_SITE_CONFIG_FILE")
+
+	if configFile != "" {
+		siteConfigFile = configFile
+	}
 }
 
 func parseFlags() {
 	listeningAddressFlag := flag.String("RMF_LISTEN_ADDRESS", "", "Server listening address")
 	startupInitDirFlag := flag.String("RMF_STARTUP_INIT_DIR", "", "Search micro frontend manifests in the dir")
 	serveStaticFileFlag := flag.String("RMF_SERVE_STATIC_FILES", "", "Blog updating script file")
+	configFileFlag := flag.String("RMF_SITE_CONFIG_FILE", "", "Site's config form YAML file")
 
 	flag.Parse()
 
@@ -72,6 +76,10 @@ func parseFlags() {
 
 	if *serveStaticFileFlag != "" {
 		serveStaticFiles = *serveStaticFileFlag != "false"
+	}
+
+	if *configFileFlag != "" {
+		siteConfigFile = *configFileFlag
 	}
 }
 
@@ -132,8 +140,23 @@ func walkAppFiles(rootDir string) WalkAppsResult {
 	return result
 }
 
+func pathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
 func main() {
 	parseFlags()
+
+	if siteConfigFile != "" {
+		LoadSiteConfig(siteConfigFile)
+	}
 
 	walkAppsResult := walkAppFiles(startupInitDir)
 	// fmt.Printf("WalkAppsResult: %v\", walkAppsResult)
@@ -161,7 +184,7 @@ func main() {
 
 		c.JSONP(http.StatusOK, &Metadata{
 			Apps:  info.OtherApps,
-			Extra: globalExtra,
+			Extra: globalSiteConfig.Extra,
 		})
 	})
 

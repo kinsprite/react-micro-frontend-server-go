@@ -10,7 +10,7 @@ import (
 
 // MetadataExtra Extra metadata
 type MetadataExtra struct {
-	DefaultRoute string `json:"defaultRoute"`
+	DefaultRoute string `json:"defaultRoute" yaml:"defaultRoute"`
 }
 
 // MetadataRender rmfRenders in package.json
@@ -125,22 +125,14 @@ func (info *MetadataInfoForRequest) GenerateIndexHTML(userAgent string) (string,
 		}
 	}
 
-	resultHTML.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"/>
-<link rel="icon" href="/favicon.ico"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="theme-color" content="#000000"/>
-<meta name="description" content="Web site for React Micro Frontends demo"/>
-<link rel="apple-touch-icon" href="/logo192.png"/>
-<title>React Micro Frontends</title>`)
+	resultHTML.WriteString(globalSiteConfig.HTMLBegin)
 
 	// Links in header
 	resultHTML.WriteString(styleLinks.String())
-	resultHTML.WriteString(`</head><body><noscript>You need to enable JavaScript to run this app.</noscript>
-<div id="root"></div><script>var rmfMetadataJSONP = {apps:[], extra: {}};
-function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`)
+	resultHTML.WriteString(globalSiteConfig.HTMLMiddle)
 
 	// JSONP: other Apps and Extra
-	metadata := Metadata{Apps: info.OtherApps, Extra: globalExtra}
+	metadata := Metadata{Apps: info.OtherApps, Extra: globalSiteConfig.Extra}
 	jsonpData, _ := json.Marshal(&metadata)
 	resultHTML.WriteString(`<script>rmfMetadataCallback(`)
 	resultHTML.Write(jsonpData)
@@ -155,7 +147,7 @@ function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`)
 	resultHTML.WriteString(scripts.String())
 
 	// HTML End
-	resultHTML.WriteString(`</body></html>`)
+	resultHTML.WriteString(globalSiteConfig.HTMLEnd)
 
 	// HTML & Server Push
 	return resultHTML.String(), GenerateSererPushLink(serverPushStyles, serverPushScripts)

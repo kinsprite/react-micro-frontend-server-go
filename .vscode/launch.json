@@ -20,6 +20,7 @@
                 "-RMF_STARTUP_INIT_DIR=${workspaceRoot}",
                 // "-RMF_STARTUP_INIT_DIR=.",
                 // "-RMF_SERVE_STATIC_FILES=false"
+                "-RMF_SITE_CONFIG_FILE=${workspaceRoot}/site_config.yaml"
             ]
         }
     ]
