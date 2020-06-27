@@ -91,41 +91,71 @@ func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 
 // GenerateIndexHTML Generate index Html for SPA
 func (info *MetadataInfoForRequest) GenerateIndexHTML(userAgent string) string {
+	resultHTML := strings.Builder{}
+	resultHTML.Grow(6 * 1024)
+
 	// polyfill and framework
-	styleLinks := ``
-	scripts := GeneratePolyfillScriptTag(&info.PolyfillApp, userAgent)
+	styleLinks := strings.Builder{}
+	scripts := strings.Builder{}
+	styleLinks.Grow(256)
+	scripts.Grow(1024)
+
+	if polyfillURL := GeneratePolyfillScriptURL(&info.PolyfillApp, userAgent); polyfillURL != "" {
+		scripts.WriteString(`<script src="`)
+		scripts.WriteString(polyfillURL)
+		scripts.WriteString(`"></script>`)
+	}
 
 	// framework
 	for _, entry := range info.FrameworkApp.Entries {
 		if strings.HasSuffix(strings.ToLower(entry), ".css") {
-			styleLinks += `<link href="` + entry + `" rel="stylesheet">`
+			styleLinks.WriteString(`<link href="`)
+			styleLinks.WriteString(entry)
+			styleLinks.WriteString(`" rel="stylesheet">`)
 		} else if strings.HasSuffix(strings.ToLower(entry), ".js") {
-			scripts += `<script src="` + entry + `"></script>`
+			scripts.WriteString(`<script src="`)
+			scripts.WriteString(entry)
+			scripts.WriteString(`"></script>`)
 		}
 	}
 
-	inlineScripts := `<script>` + info.FrameworkRuntime + `</script>`
-
-	// other apps
-	metadata := Metadata{Apps: info.OtherApps, Extra: globalExtra}
-	jsonpData, _ := json.Marshal(&metadata)
-	jsonpScript := `<script>rmfMetadataCallback(` + string(jsonpData) + `)</script>`
-
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+	resultHTML.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8"/>
 <link rel="icon" href="/favicon.ico"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="theme-color" content="#000000"/>
 <meta name="description" content="Web site for React Micro Frontends demo"/>
 <link rel="apple-touch-icon" href="/logo192.png"/>
-<title>React Micro Frontends</title>
-` + styleLinks + `</head><body><noscript>You need to enable JavaScript to run this app.</noscript>
+<title>React Micro Frontends</title>`)
+
+	// Links in header
+	resultHTML.WriteString(styleLinks.String())
+	resultHTML.WriteString(`</head><body><noscript>You need to enable JavaScript to run this app.</noscript>
 <div id="root"></div><script>var rmfMetadataJSONP = {apps:[], extra: {}};
-function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>
-` + jsonpScript + inlineScripts + scripts + `</body></html>`
+function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`)
+
+	// JSONP: other Apps and Extra
+	metadata := Metadata{Apps: info.OtherApps, Extra: globalExtra}
+	jsonpData, _ := json.Marshal(&metadata)
+	resultHTML.WriteString(`<script>rmfMetadataCallback(`)
+	resultHTML.Write(jsonpData)
+	resultHTML.WriteString(`)</script>`)
+
+	// Inline framework runtime
+	resultHTML.WriteString(`<script>`)
+	resultHTML.WriteString(info.FrameworkRuntime)
+	resultHTML.WriteString(`</script>`)
+
+	// Polyfill and Framework scripts
+	resultHTML.WriteString(scripts.String())
+
+	// End
+	resultHTML.WriteString(`</body></html>`)
+
+	return resultHTML.String()
 }
 
-// GeneratePolyfillScriptTag Generate polyfill script tag on different Browser
-func GeneratePolyfillScriptTag(polyfillApp *MetadataApp, userAgent string) string {
+// GeneratePolyfillScriptURL Generate polyfill script url on different Browser
+func GeneratePolyfillScriptURL(polyfillApp *MetadataApp, userAgent string) string {
 	ua := user_agent.New(userAgent)
 
 	if ua.Bot() {
@@ -165,7 +195,7 @@ func GeneratePolyfillScriptTag(polyfillApp *MetadataApp, userAgent string) strin
 	}
 
 	if url, ok := mapEntries[key]; ok {
-		return `<script src="` + url + `"></script>`
+		return url
 	}
 
 	return ""
