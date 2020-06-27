@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"strconv"
 	"strings"
 
-	"encoding/json"
+	"github.com/mssola/user_agent"
 )
 
 // MetadataExtra Extra metadata
@@ -11,6 +13,7 @@ type MetadataExtra struct {
 	DefaultRoute string `json:"defaultRoute"`
 }
 
+// MetadataRender rmfRenders in package.json
 type MetadataRender struct {
 	RenderID     string `json:"renderId"`
 	RoutePath    string `json:"routePath"`
@@ -33,6 +36,7 @@ type Metadata struct {
 
 // MetadataInfoForRequest Metadata info for user request
 type MetadataInfoForRequest struct {
+	PolyfillApp      MetadataApp
 	FrameworkApp     MetadataApp
 	FrameworkRuntime string // content of 'runtime-framework.xxx.js'
 	OtherApps        []MetadataApp
@@ -86,11 +90,12 @@ func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 }
 
 // GenerateIndexHTML Generate index Html for SPA
-func (info *MetadataInfoForRequest) GenerateIndexHTML() string {
-	// framework
+func (info *MetadataInfoForRequest) GenerateIndexHTML(userAgent string) string {
+	// polyfill and framework
 	styleLinks := ``
-	scripts := ``
+	scripts := GeneratePolyfillScriptTag(&info.PolyfillApp, userAgent)
 
+	// framework
 	for _, entry := range info.FrameworkApp.Entries {
 		if strings.HasSuffix(strings.ToLower(entry), ".css") {
 			styleLinks += `<link href="` + entry + `" rel="stylesheet">`
@@ -117,4 +122,65 @@ func (info *MetadataInfoForRequest) GenerateIndexHTML() string {
 <div id="root"></div><script>var rmfMetadataJSONP = {apps:[], extra: {}};
 function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>
 ` + jsonpScript + inlineScripts + scripts + `</body></html>`
+}
+
+// GeneratePolyfillScriptTag Generate polyfill script tag on different Browser
+func GeneratePolyfillScriptTag(polyfillApp *MetadataApp, userAgent string) string {
+	ua := user_agent.New(userAgent)
+
+	if ua.Bot() {
+		// don't give polyfill to a bot
+		return ""
+	}
+
+	mapEntries := mapPolyfillEntries(polyfillApp.Entries)
+	key := ""
+
+	browserName, browserVersion := ua.Browser()
+
+	if browserName == "Internet Explorer" {
+		ieVersion, err := strconv.ParseFloat(browserVersion, 32)
+
+		if err != nil {
+			ieVersion = 0.0
+		}
+
+		// IE11
+		if ieVersion > 10.5 {
+			if _, ok := mapEntries["polyfill-ie11"]; ok {
+				key = "polyfill-ie11"
+			}
+		}
+
+		// IE9
+		if key == "" {
+			if _, ok := mapEntries["polyfill-ie9"]; ok {
+				key = "polyfill-ie9"
+			}
+		}
+	}
+
+	if key == "" {
+		key = "polyfill"
+	}
+
+	if url, ok := mapEntries[key]; ok {
+		return `<script src="` + url + `"></script>`
+	}
+
+	return ""
+}
+
+// return { "polyfill": "full-URL", "polyfill-ie9": "full-URL-ie9", "polyfill-ie11": "full-URL-ie11", }
+func mapPolyfillEntries(entries []string) map[string]string {
+	res := map[string]string{}
+
+	for _, url := range entries {
+		parts := strings.Split(url, "/")
+		lastPart := parts[len(parts)-1]
+		key := strings.SplitN(lastPart, ".", 2)[0]
+		res[key] = url
+	}
+
+	return res
 }

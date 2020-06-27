@@ -22,6 +22,7 @@ type WalkAppsResult struct {
 const (
 	appDirPrefix               = "rmf-"
 	manifestFileName           = "rmf-manifest.json"
+	polyfillServiceName        = "polyfill"
 	frameworkServiceName       = "framework"
 	frameworkRuntimeFilePrefix = "runtime-framework."
 )
@@ -204,7 +205,8 @@ func main() {
 	router.NoRoute(func(c *gin.Context) {
 		info := cache.GenerateMetadata(true, true)
 		// fmt.Printf("INFO %+v\n", info)
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(info.GenerateIndexHTML()))
+		userAgent := c.Request.UserAgent()
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(info.GenerateIndexHTML(userAgent)))
 	})
 
 	fmt.Println("Serve on: ", listenAddress)

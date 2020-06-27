@@ -123,7 +123,9 @@ func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) 
 
 		app := manifests[selIdx].ConvertToMetadataApp()
 
-		if serviceName == frameworkServiceName {
+		if serviceName == polyfillServiceName {
+			info.PolyfillApp = *app
+		} else if serviceName == frameworkServiceName {
 			// fmt.Printf("Frame manifests BEFORE: %+v\n", *manifests[selIdx])
 			cache.AppendFrameworkAppInfo(info, app, inlineRuntime)
 			// fmt.Printf("Frame manifests AFTER: %+v\n", *manifests[selIdx])
