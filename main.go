@@ -206,7 +206,13 @@ func main() {
 		info := cache.GenerateMetadata(true, true)
 		// fmt.Printf("INFO %+v\n", info)
 		userAgent := c.Request.UserAgent()
-		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(info.GenerateIndexHTML(userAgent)))
+		HTML, pushLink := info.GenerateIndexHTML(userAgent)
+
+		if pushLink != "" {
+			c.Writer.Header().Add("Link", pushLink)
+		}
+
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(HTML))
 	})
 
 	fmt.Println("Serve on: ", listenAddress)

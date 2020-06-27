@@ -89,10 +89,13 @@ func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 	return &app
 }
 
-// GenerateIndexHTML Generate index Html for SPA
-func (info *MetadataInfoForRequest) GenerateIndexHTML(userAgent string) string {
+// GenerateIndexHTML Generate index Html for SPA. return (HTML, ServerPushLink)
+func (info *MetadataInfoForRequest) GenerateIndexHTML(userAgent string) (string, string) {
 	resultHTML := strings.Builder{}
 	resultHTML.Grow(6 * 1024)
+
+	serverPushStyles := []string{}
+	serverPushScripts := []string{}
 
 	// polyfill and framework
 	styleLinks := strings.Builder{}
@@ -104,6 +107,7 @@ func (info *MetadataInfoForRequest) GenerateIndexHTML(userAgent string) string {
 		scripts.WriteString(`<script src="`)
 		scripts.WriteString(polyfillURL)
 		scripts.WriteString(`"></script>`)
+		serverPushScripts = append(serverPushScripts, polyfillURL)
 	}
 
 	// framework
@@ -112,10 +116,12 @@ func (info *MetadataInfoForRequest) GenerateIndexHTML(userAgent string) string {
 			styleLinks.WriteString(`<link href="`)
 			styleLinks.WriteString(entry)
 			styleLinks.WriteString(`" rel="stylesheet">`)
+			serverPushStyles = append(serverPushStyles, entry)
 		} else if strings.HasSuffix(strings.ToLower(entry), ".js") {
 			scripts.WriteString(`<script src="`)
 			scripts.WriteString(entry)
 			scripts.WriteString(`"></script>`)
+			serverPushScripts = append(serverPushScripts, entry)
 		}
 	}
 
@@ -148,10 +154,11 @@ function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`)
 	// Polyfill and Framework scripts
 	resultHTML.WriteString(scripts.String())
 
-	// End
+	// HTML End
 	resultHTML.WriteString(`</body></html>`)
 
-	return resultHTML.String()
+	// HTML & Server Push
+	return resultHTML.String(), GenerateSererPushLink(serverPushStyles, serverPushScripts)
 }
 
 // GeneratePolyfillScriptURL Generate polyfill script url on different Browser
@@ -166,6 +173,12 @@ func GeneratePolyfillScriptURL(polyfillApp *MetadataApp, userAgent string) strin
 	mapEntries := mapPolyfillEntries(polyfillApp.Entries)
 	key := ""
 
+	setKeyIfValid := func(newKey string) {
+		if _, ok := mapEntries[newKey]; ok {
+			key = newKey
+		}
+	}
+
 	browserName, browserVersion := ua.Browser()
 
 	if browserName == "Internet Explorer" {
@@ -177,25 +190,22 @@ func GeneratePolyfillScriptURL(polyfillApp *MetadataApp, userAgent string) strin
 
 		// IE11
 		if ieVersion > 10.5 {
-			if _, ok := mapEntries["polyfill-ie11"]; ok {
-				key = "polyfill-ie11"
-			}
+			setKeyIfValid("polyfill-ie11")
 		}
 
-		// IE9
+		// IE9 as fallback
 		if key == "" {
-			if _, ok := mapEntries["polyfill-ie9"]; ok {
-				key = "polyfill-ie9"
-			}
+			setKeyIfValid("polyfill-ie9")
 		}
 	}
 
+	// Modern browser
 	if key == "" {
-		key = "polyfill"
+		setKeyIfValid("polyfill")
 	}
 
-	if url, ok := mapEntries[key]; ok {
-		return url
+	if key != "" {
+		return mapEntries[key]
 	}
 
 	return ""
@@ -213,4 +223,34 @@ func mapPolyfillEntries(entries []string) map[string]string {
 	}
 
 	return res
+}
+
+// GenerateSererPushLink Generate server push link in HTTP headers
+func GenerateSererPushLink(serverPushStyles []string, serverPushScripts []string) string {
+	// Server Push
+	headerLink := strings.Builder{}
+	headerLink.Grow(2048)
+
+	addNewURL := func(url string, asType string) {
+		if headerLink.Len() > 0 {
+			headerLink.WriteString(", ")
+		}
+
+		// Format: </style.css>; as=style; rel=preload, </favicon.ico>; as=image; rel=preload
+		headerLink.WriteString(`<`)
+		headerLink.WriteString(url)
+		headerLink.WriteString(`>; as=`)
+		headerLink.WriteString(asType)
+		headerLink.WriteString(`; rel=preload`)
+	}
+
+	for _, url := range serverPushStyles {
+		addNewURL(url, "style")
+	}
+
+	for _, url := range serverPushScripts {
+		addNewURL(url, "script")
+	}
+
+	return headerLink.String()
 }
