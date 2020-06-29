@@ -18,7 +18,7 @@ type SiteConfig struct {
 
 var globalSiteConfig = SiteConfig{
 	Extra: MetadataExtra{
-		DefaultRoute: "/home",
+		"defaultRoute": "/home",
 	},
 	HTMLBegin: `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
 <link rel="icon" href="/favicon.ico"/>
@@ -58,8 +58,8 @@ func LoadSiteConfig(filename string) {
 
 // MergeFrom Merge the config to 'conf' from 'other'
 func (conf *SiteConfig) MergeFrom(other *SiteConfig) {
-	if other.Extra.DefaultRoute != "" {
-		conf.Extra.DefaultRoute = other.Extra.DefaultRoute
+	for key, value := range other.Extra {
+		conf.Extra[key] = value
 	}
 
 	if other.HTMLBegin != "" {

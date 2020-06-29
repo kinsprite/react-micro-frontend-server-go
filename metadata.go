@@ -9,16 +9,10 @@ import (
 )
 
 // MetadataExtra Extra metadata
-type MetadataExtra struct {
-	DefaultRoute string `json:"defaultRoute" yaml:"defaultRoute"`
-}
+type MetadataExtra map[string]string
 
 // MetadataRender rmfRenders in package.json
-type MetadataRender struct {
-	RenderID     string `json:"renderId"`
-	RoutePath    string `json:"routePath"`
-	ComponentKey string `json:"componentKey"`
-}
+type MetadataRender map[string]string
 
 // MetadataApp App's metadata
 type MetadataApp struct {
@@ -26,6 +20,7 @@ type MetadataApp struct {
 	Dependencies []string         `json:"dependencies"` // NOT implement yet
 	Entries      []string         `json:"entries"`
 	Renders      []MetadataRender `json:"renders"`
+	Extra        MetadataExtra    `json:"extra"`
 }
 
 // Metadata the all metadata
@@ -58,6 +53,7 @@ type AppManifest struct {
 	PublicPath    string           `json:"publicPath"`
 	Renders       []MetadataRender `json:"renders"`
 	ServiceName   string           `json:"serviceName"`
+	Extra         MetadataExtra    `json:"extra"`
 }
 
 // AppInstallParam App install param
@@ -84,6 +80,7 @@ func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 		Dependencies: manifest.Dependencies,
 		Entries:      manifest.Entrypoints,
 		Renders:      manifest.Renders,
+		Extra:        manifest.Extra,
 	}
 
 	return &app
