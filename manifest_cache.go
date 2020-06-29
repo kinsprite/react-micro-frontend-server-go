@@ -14,8 +14,8 @@ import (
 // AppManifestCache AppManifest Cache
 type AppManifestCache struct {
 	FrameworkRuntimes sync.Map // entry URL to runtime JS contents, as map[key string]string
-	ServiceManifests  sync.Map // serverName to []*AppManifest, as map[key string] []*AppManifest
-	ServiceMutexes    sync.Map //  serverName to *Mutex, for per app's Install and Uninstall
+	ServiceManifests  sync.Map // serviceName to []*AppManifest, as map[key string] []*AppManifest
+	ServiceMutexes    sync.Map // serviceName to *Mutex, for per app's Install and Uninstall
 }
 
 // NewAppManifestCache new an AppManifestCache
@@ -194,7 +194,7 @@ func (cache *AppManifestCache) InstallAppVersion(app *AppInstallParam) bool {
 	return true
 }
 
-// UninstallAppVersion Uninstall an delployed App version. NOTE: Leave cache.FrameworkRuntimes unchanged.
+// UninstallAppVersion Uninstall an deployed App version. NOTE: Leave cache.FrameworkRuntimes unchanged.
 func (cache *AppManifestCache) UninstallAppVersion(app *AppUninstallParam) bool {
 	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.ServiceName, &sync.Mutex{})
 	mtx := mtxValue.(*sync.Mutex)
