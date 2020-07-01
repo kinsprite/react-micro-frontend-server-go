@@ -10,10 +10,11 @@ import (
 
 // SiteConfig site config
 type SiteConfig struct {
-	Extra      MetadataExtra `yaml:"extra"`
-	HTMLBegin  string        `yaml:"htmlBegin"`
-	HTMLMiddle string        `yaml:"htmlMiddle"`
-	HTMLEnd    string        `yaml:"htmlEnd"`
+	Extra            MetadataExtra `yaml:"extra"`
+	HTMLBegin        string        `yaml:"htmlBegin"`
+	HTMLMiddle       string        `yaml:"htmlMiddle"`
+	HTMLEnd          string        `yaml:"htmlEnd"`
+	ServeStaticFiles []string      `yaml:"serveStaticFiles"`
 }
 
 var globalSiteConfig = SiteConfig{
@@ -31,6 +32,9 @@ var globalSiteConfig = SiteConfig{
 <div id="root"></div><script>var rmfMetadataJSONP = {apps:[], extra: {}};
 function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`,
 	HTMLEnd: `</body></html>`,
+	ServeStaticFiles: []string{
+		"favicon.ico",
+	},
 }
 
 // LoadSiteConfig Load site's config form YAML file
@@ -72,5 +76,9 @@ func (conf *SiteConfig) MergeFrom(other *SiteConfig) {
 
 	if other.HTMLEnd != "" {
 		conf.HTMLEnd = other.HTMLEnd
+	}
+
+	if len(other.ServeStaticFiles) > 0 {
+		conf.ServeStaticFiles = other.ServeStaticFiles
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -216,12 +217,16 @@ func main() {
 	})
 
 	if serveStaticFiles {
+		// Fix invalid MIME type in windows
+		mime.AddExtensionType(".js", "text/javascript")
+
 		for _, appDir := range walkAppsResult.AppDirs {
 			router.Static("/"+appDir, path.Join(startupInitDir, appDir))
 		}
 
-		router.StaticFile("/favicon.ico", path.Join(startupInitDir, "favicon.ico"))
-		router.StaticFile("/logo192.png", path.Join(startupInitDir, "logo192.png"))
+		for _, file := range globalSiteConfig.ServeStaticFiles {
+			router.StaticFile("/"+file, path.Join(startupInitDir, file))
+		}
 	}
 
 	// SPA

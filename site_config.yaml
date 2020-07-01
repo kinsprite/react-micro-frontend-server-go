@@ -8,12 +8,31 @@ htmlBegin: >-
   <meta name="theme-color" content="#000000"/>
   <meta name="description" content="Web site for React Micro Frontends demo"/>
   <link rel="apple-touch-icon" href="/logo192.png"/>
+  <link rel="manifest" href="/rmf-pwa.webmanifest"/>
   <title>React Micro Frontends</title>
 
 htmlMiddle: >-
   </head><body><noscript>You need to enable JavaScript to run this app.</noscript>
   <div id="root"></div><script>var rmfMetadataJSONP = {apps:[], extra: {}};
-  function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>
+  function rmfMetadataCallback(data) { rmfMetadataJSONP = data }
+  if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js').then(function() {
+  console.log('Service Worker Registered'); });
+  navigator.serviceWorker.addEventListener('message', function(e) {
+  if (e.data && e.data.type == 'rmf-cache-require') {
+  console.log('Message "rmf-cache-require" received');
+  e.source.postMessage({type:'rmf-cache-prefetch', payload: rmfMetadataJSONP});
+  }});
+  navigator.serviceWorker.startMessages();
+  }</script>
 
 htmlEnd: >-
   </body></html>
+
+serveStaticFiles:
+  - 404.html
+  - favicon.ico
+  - logo192.png
+  - logo512.png
+  - rmf-pwa.webmanifest
+  - service-worker.js
