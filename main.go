@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,11 +23,12 @@ type WalkAppsResult struct {
 
 const (
 	appDirPrefix               = "rmf-"
-	manifestFileName           = "rmf-manifest.json"
 	polyfillServiceName        = "polyfill"
 	frameworkServiceName       = "framework"
 	frameworkRuntimeFilePrefix = "runtime-framework."
 )
+
+var manifestFileNameRegexp = regexp.MustCompile(`^rmf-manifest([.\-_].+)?\.json$`)
 
 var listenAddress = "127.0.0.1:8080"
 var startupInitDir = "."
@@ -84,14 +86,12 @@ func parseFlags() {
 	}
 }
 
+func matchManifestFileName(fileName string) bool {
+	return manifestFileNameRegexp.MatchString(fileName)
+}
+
 func walkAppFiles(rootDir string) WalkAppsResult {
 	result := WalkAppsResult{}
-
-	rootLen := len(rootDir)
-
-	if rootDir[rootLen-1] != '/' && rootDir[rootLen-1] != '\\' {
-		rootLen++
-	}
 
 	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -125,8 +125,8 @@ func walkAppFiles(rootDir string) WalkAppsResult {
 			result.AppDirs = append(result.AppDirs, name)
 		}
 
-		// Find 'rmf-manifest.json'
-		if !isDir && name == manifestFileName {
+		// Find 'rmf-manifest.json' or 'rmf-manifest.xxx.json'
+		if !isDir && matchManifestFileName(name) {
 			// fmt.Printf("Find manifest: %+v\n", path)
 			result.ManifestFiles = append(result.ManifestFiles, path)
 		}

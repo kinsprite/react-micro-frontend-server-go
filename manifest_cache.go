@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -80,24 +81,38 @@ func (cache *AppManifestCache) CacheFrameworkRuntimes(baseDir string) {
 func readRuntimeContent(baseDir string, entry string) (string, error) {
 	entryParts := strings.Split(entry, "/")
 	partsLen := len(entryParts)
+	var content []byte
+	var err error
 
-	start := 0
+	readRuntime := func(validPathParts int) bool {
+		start := 0
 
-	if partsLen > 3 {
-		start = partsLen - 3
+		if partsLen > validPathParts {
+			start = partsLen - validPathParts
+		}
+
+		parts := append([]string{baseDir}, entryParts[start:partsLen]...)
+		filename := path.Join(parts...)
+
+		if exist, _ := pathExists(filename); exist {
+			content, err = ioutil.ReadFile(filename)
+
+			if err == nil {
+				return true
+			}
+		}
+
+		return false
 	}
 
-	parts := append([]string{baseDir}, entryParts[start:partsLen]...)
-	filename := path.Join(parts...)
+	ok := readRuntime(3) || readRuntime(2) || readRuntime(1)
 
-	content, err := ioutil.ReadFile(filename)
-
-	if err != nil {
-		log.Printf("[ERROR]  Cannot read file %s\n", filename)
-		return "", err
+	if !ok {
+		log.Printf("[ERROR]  Cannot read runtime content for %s\n", entry)
+		return "", fmt.Errorf("Cannot read runtime content")
 	}
 
-	return string(content[:]), err
+	return string(content[:]), nil
 }
 
 // GenerateMetadata Generate Metadata for user request
