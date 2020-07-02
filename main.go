@@ -7,7 +7,6 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -220,13 +219,7 @@ func main() {
 		// Fix invalid MIME type in windows
 		mime.AddExtensionType(".js", "text/javascript")
 
-		for _, appDir := range walkAppsResult.AppDirs {
-			router.Static("/"+appDir, path.Join(startupInitDir, appDir))
-		}
-
-		for _, file := range globalSiteConfig.ServeStaticFiles {
-			router.StaticFile("/"+file, path.Join(startupInitDir, file))
-		}
+		serveDirsAndFiles(router, &walkAppsResult, startupInitDir)
 	}
 
 	// SPA

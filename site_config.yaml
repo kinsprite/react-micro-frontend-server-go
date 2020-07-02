@@ -36,3 +36,5 @@ serveStaticFiles:
   - logo512.png
   - rmf-pwa.webmanifest
   - service-worker.js
+
+serveAllInDir: false
