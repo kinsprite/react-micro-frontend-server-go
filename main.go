@@ -25,6 +25,8 @@ const (
 	polyfillServiceName        = "polyfill"
 	frameworkServiceName       = "framework"
 	frameworkRuntimeFilePrefix = "runtime-framework."
+	userGroupKey               = "userGroup"
+	testerGroup                = "tester"
 )
 
 var manifestFileNameRegexp = regexp.MustCompile(`^rmf-manifest([.\-_].+)?\.json$`)
@@ -171,16 +173,20 @@ func main() {
 	// fmt.Printf("Cache ServiceManifests: %+v\n", cache.ServiceManifests)
 	// fmt.Printf("Cache FrameworkRuntimes: %+v\n", cache.FrameworkRuntimes)
 
-	router := gin.Default()
+	engine := gin.Default()
+	sessionMiddleware := createSessionMiddleware()
 
-	router.GET("/healthz", func(c *gin.Context) {
+	engine.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "OK",
 		})
 	})
 
-	router.GET("/api/metadata/info", func(c *gin.Context) {
-		info := cache.GenerateMetadata(true, true)
+	metadataRouterGroup := engine.Group("/api/metadata").Use(sessionMiddleware)
+
+	metadataRouterGroup.GET("/info", func(c *gin.Context) {
+		userGroup := getUserGroup(c)
+		info := cache.GenerateMetadata(GenMetadataParam{userGroup, true})
 
 		c.JSONP(http.StatusOK, &Metadata{
 			Apps:  info.OtherApps,
@@ -188,7 +194,7 @@ func main() {
 		})
 	})
 
-	router.POST("/api/metadata/install-app-version", func(c *gin.Context) {
+	metadataRouterGroup.POST("/install-app-version", func(c *gin.Context) {
 		var param AppInstallParam
 
 		if err := c.BindJSON(&param); err != nil {
@@ -202,7 +208,7 @@ func main() {
 		})
 	})
 
-	router.POST("/api/metadata/uninstall-app-version", func(c *gin.Context) {
+	metadataRouterGroup.POST("/uninstall-app-version", func(c *gin.Context) {
 		var param AppUninstallParam
 
 		if err := c.BindJSON(&param); err != nil {
@@ -215,16 +221,57 @@ func main() {
 		})
 	})
 
+	userRouterGroup := engine.Group("/api/user").Use(sessionMiddleware)
+
+	userRouterGroup.GET("/is-tester", func(c *gin.Context) {
+		//session.Start(context.Background(), c.Writer, c.Request)
+
+		isTester := getUserGroup(c) == testerGroup
+		c.JSON(http.StatusOK, isTester)
+	})
+
+	userRouterGroup.POST("/login-as-tester", func(c *gin.Context) {
+		var isTester bool
+
+		if err := c.BindJSON(&isTester); err != nil {
+			return
+		}
+
+		userGroup := testerGroup
+
+		if !isTester {
+			userGroup = ""
+		}
+
+		store := sessionStoreFromContext(c)
+
+		if store == nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+
+		store.Set(userGroupKey, userGroup)
+		err := store.Save()
+
+		if err != nil {
+			c.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+
+		c.Status(http.StatusOK)
+	})
+
 	if serveStaticFiles {
 		// Fix invalid MIME type in windows
 		mime.AddExtensionType(".js", "text/javascript")
 
-		serveDirsAndFiles(router, &walkAppsResult, startupInitDir)
+		serveDirsAndFiles(engine, &walkAppsResult, startupInitDir)
 	}
 
 	// SPA
-	router.NoRoute(func(c *gin.Context) {
-		info := cache.GenerateMetadata(true, true)
+	engine.NoRoute(sessionMiddleware, func(c *gin.Context) {
+		userGroup := getUserGroup(c)
+		info := cache.GenerateMetadata(GenMetadataParam{userGroup, true})
 		// fmt.Printf("INFO %+v\n", info)
 		userAgent := c.Request.UserAgent()
 		HTML, pushLink := info.GenerateIndexHTML(userAgent)
@@ -237,5 +284,5 @@ func main() {
 	})
 
 	fmt.Println("Serve on: ", listenAddress)
-	router.Run(listenAddress)
+	engine.Run(listenAddress)
 }

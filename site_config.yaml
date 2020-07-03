@@ -38,3 +38,5 @@ serveStaticFiles:
   - service-worker.js
 
 serveAllInDir: false
+
+sessionSign: ""

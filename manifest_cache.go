@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+// GenMetadataParam the param for GenerateMetadataParam()
+type GenMetadataParam struct {
+	UserGroup       string
+	IsInlineRuntime bool
+}
+
 // AppManifestCache AppManifest Cache
 type AppManifestCache struct {
 	FrameworkRuntimes sync.Map // entry URL to runtime JS contents, as map[key string]string
@@ -116,7 +122,7 @@ func readRuntimeContent(baseDir string, entry string) (string, error) {
 }
 
 // GenerateMetadata Generate Metadata for user request
-func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) *MetadataInfoForRequest {
+func (cache *AppManifestCache) GenerateMetadata(param GenMetadataParam) *MetadataInfoForRequest {
 	info := &MetadataInfoForRequest{}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -142,7 +148,7 @@ func (cache *AppManifestCache) GenerateMetadata(isDev bool, inlineRuntime bool) 
 			info.PolyfillApp = *app
 		} else if serviceName == frameworkServiceName {
 			// fmt.Printf("Frame manifests BEFORE: %+v\n", *manifests[selIdx])
-			cache.AppendFrameworkAppInfo(info, app, inlineRuntime)
+			cache.AppendFrameworkAppInfo(info, app, param.IsInlineRuntime)
 			// fmt.Printf("Frame manifests AFTER: %+v\n", *manifests[selIdx])
 		} else {
 			info.OtherApps = append(info.OtherApps, *app)

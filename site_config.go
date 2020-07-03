@@ -16,6 +16,7 @@ type SiteConfig struct {
 	HTMLEnd          string        `yaml:"htmlEnd"`
 	ServeStaticFiles []string      `yaml:"serveStaticFiles"`
 	ServeAllInDir    bool          `yaml:"serveAllInDir"`
+	SessionSign      string        `yaml:"sessionSign"`
 }
 
 var globalSiteConfig = SiteConfig{
@@ -37,6 +38,7 @@ function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`,
 		"favicon.ico",
 	},
 	ServeAllInDir: false,
+	SessionSign:   "",
 }
 
 // LoadSiteConfig Load site's config form YAML file
@@ -84,7 +86,6 @@ func (conf *SiteConfig) MergeFrom(other *SiteConfig) {
 		conf.ServeStaticFiles = other.ServeStaticFiles
 	}
 
-	if other.ServeAllInDir {
-		conf.ServeAllInDir = other.ServeAllInDir
-	}
+	conf.ServeAllInDir = other.ServeAllInDir
+	conf.SessionSign = other.SessionSign
 }
