@@ -43,7 +43,9 @@ serveStaticFiles:
 
 serveAllInDir: false
 
+ginReleaseMode: false
 sessionSign: ""
+
 extraKeysHidden:
   - userGroup
   - actPercent

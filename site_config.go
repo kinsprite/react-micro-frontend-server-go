@@ -21,6 +21,7 @@ type SiteConfig struct {
 	ServeStaticFiles  []string `yaml:"serveStaticFiles"`
 	ServeAllInDir     bool     `yaml:"serveAllInDir"`
 
+	GinReleaseMode  bool     `yaml:"ginReleaseMode"`
 	SessionSign     string   `yaml:"sessionSign"`
 	ExtraKeysHidden []string `yaml:"extraKeysHidden"`
 
@@ -52,7 +53,9 @@ function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`,
 	},
 	ServeAllInDir: false,
 
-	SessionSign: "",
+	GinReleaseMode: false,
+	SessionSign:    "",
+
 	ExtraKeysHidden: []string{
 		"userGroup",
 		"actPercent",
@@ -112,6 +115,7 @@ func (conf *SiteConfig) MergeFrom(other *SiteConfig) {
 	}
 
 	conf.ServeAllInDir = other.ServeAllInDir
+	conf.GinReleaseMode = other.GinReleaseMode
 	conf.SessionSign = other.SessionSign
 
 	if len(other.ExtraKeysHidden) > 0 {

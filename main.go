@@ -146,6 +146,10 @@ func main() {
 	// fmt.Printf("Cache ServiceManifests: %+v\n", cache.ServiceManifests)
 	// fmt.Printf("Cache FrameworkRuntimes: %+v\n", cache.FrameworkRuntimes)
 
+	if globalSiteConfig.GinReleaseMode {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	engine := gin.Default()
 	sessionMiddleware := createSessionMiddleware()
 
