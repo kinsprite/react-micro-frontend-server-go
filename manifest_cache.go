@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,12 @@ import (
 type GenMetadataParam struct {
 	UserGroups      []string
 	IsInlineRuntime bool
+}
+
+// AppFilterItem the app item found
+type AppFilterItem struct {
+	App               *AppManifest
+	ActivationPercent int
 }
 
 // AppManifestCache AppManifest Cache
@@ -133,10 +140,29 @@ func stringSliceContainsAny(a, b []string) bool {
 	return false
 }
 
+func calcActivationPercent(manifest *AppManifest) int {
+	if value, ok := manifest.Extra[activationPercentKey]; ok {
+		activationPercent, err := strconv.Atoi(value)
+
+		if err != nil {
+			activationPercent = 0
+		} else if activationPercent < 0 {
+			activationPercent = 0
+		} else if activationPercent > 100 {
+			activationPercent = 100
+		}
+
+		return activationPercent
+	}
+
+	// default: when missing 'activationPercent' in extra map
+	return 100
+}
+
 func filterUserManifests(manifests []*AppManifest, userGroups []string) (
-	matches []*AppManifest, defaults []*AppManifest) {
-	matches = []*AppManifest{}
-	defaults = []*AppManifest{}
+	matches []AppFilterItem, defaults []AppFilterItem) {
+	matches = []AppFilterItem{}
+	defaults = []AppFilterItem{}
 	defaultGroups := []string{defaultUserGroup}
 
 	for _, manifest := range manifests {
@@ -146,14 +172,47 @@ func filterUserManifests(manifests []*AppManifest, userGroups []string) (
 			groupsInExtra = strings.Split(value, userGroupsSplitSep)
 		}
 
+		activationPercent := calcActivationPercent(manifest)
+
+		if activationPercent < 1 {
+			continue
+		}
+
+		item := AppFilterItem{App: manifest, ActivationPercent: activationPercent}
+
 		if stringSliceContainsAny(groupsInExtra, userGroups) {
-			matches = append(matches, manifest)
+			matches = append(matches, item)
 		} else if stringSliceContainsAny(groupsInExtra, defaultGroups) {
-			defaults = append(defaults, manifest)
+			defaults = append(defaults, item)
 		}
 	}
 
 	return matches, defaults
+}
+
+func selectAppByActivationPercent(r *rand.Rand, manifests []AppFilterItem) int {
+	selIdx := 0
+	mLen := len(manifests)
+
+	if mLen > 1 {
+		sum := 0
+		steps := make([]int, mLen)
+
+		for i := 0; i < mLen; i++ {
+			sum += manifests[i].ActivationPercent
+			steps[i] = sum
+		}
+
+		selSum := r.Intn(sum)
+
+		for i := 0; i < mLen; i++ {
+			if selSum < steps[i] {
+				return i
+			}
+		}
+	}
+
+	return selIdx
 }
 
 // GenerateMetadata Generate Metadata for user request
@@ -170,26 +229,18 @@ func (cache *AppManifestCache) GenerateMetadata(param GenMetadataParam) *Metadat
 			manifests = matches
 		}
 
-		mLen := len(manifests)
-
-		if mLen == 0 {
+		// guard for defaults is empty
+		if len(manifests) == 0 {
 			return true
 		}
 
-		selIdx := 0
-
-		if mLen > 1 {
-			selIdx = r.Intn(mLen)
-		}
-
-		app := manifests[selIdx].ConvertToMetadataApp()
+		selIdx := selectAppByActivationPercent(r, manifests)
+		app := manifests[selIdx].App.ConvertToMetadataApp()
 
 		if serviceName == polyfillServiceName {
 			info.PolyfillApp = *app
 		} else if serviceName == frameworkServiceName {
-			// fmt.Printf("Frame manifests BEFORE: %+v\n", *manifests[selIdx])
 			cache.AppendFrameworkAppInfo(info, app, param.IsInlineRuntime)
-			// fmt.Printf("Frame manifests AFTER: %+v\n", *manifests[selIdx])
 		} else {
 			info.OtherApps = append(info.OtherApps, *app)
 		}

@@ -58,7 +58,7 @@ function rmfMetadataCallback(data) { rmfMetadataJSONP = data }</script>`,
 
 	ExtraKeysHidden: []string{
 		"userGroup",
-		"actPercent",
+		"activationPercent",
 	},
 }
 

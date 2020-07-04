@@ -26,6 +26,7 @@ const (
 	frameworkServiceName       = "framework"
 	frameworkRuntimeFilePrefix = "runtime-framework."
 	userGroupKey               = "userGroup"
+	activationPercentKey       = "activationPercent"
 	testerUserGroup            = "tester"
 	defaultUserGroup           = ""
 	userGroupsSplitSep         = ","

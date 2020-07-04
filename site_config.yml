@@ -47,5 +47,5 @@ ginReleaseMode: false
 sessionSign: ""
 
 extraKeysHidden:
-  - userGroup
-  - actPercent
+  - userGroup            # value: normal string
+  - activationPercent    # value: integer 0 to 100 in string format
