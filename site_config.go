@@ -78,6 +78,8 @@ func LoadSiteConfig(filename string) {
 		log.Printf("[ERROR]  Cannot convert file %s to SiteConfig\n", filename)
 		return
 	}
+
+	globalSiteConfig.MergeFrom(&siteConfig)
 }
 
 // MergeFrom Merge the config to 'conf' from 'other'
