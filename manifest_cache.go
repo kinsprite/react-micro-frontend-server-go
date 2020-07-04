@@ -14,7 +14,7 @@ import (
 
 // GenMetadataParam the param for GenerateMetadataParam()
 type GenMetadataParam struct {
-	UserGroup       string
+	UserGroups      []string
 	IsInlineRuntime bool
 }
 
@@ -121,20 +121,34 @@ func readRuntimeContent(baseDir string, entry string) (string, error) {
 	return string(content[:]), nil
 }
 
-func filterUserManifests(manifests []*AppManifest, userGroup string) (matches []*AppManifest, defaults []*AppManifest) {
+func stringSliceContainsAny(a, b []string) bool {
+	for i := 0; i < len(a); i++ {
+		for j := 0; j < len(b); j++ {
+			if a[i] == b[j] {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func filterUserManifests(manifests []*AppManifest, userGroups []string) (
+	matches []*AppManifest, defaults []*AppManifest) {
 	matches = []*AppManifest{}
 	defaults = []*AppManifest{}
+	defaultGroups := []string{defaultUserGroup}
 
 	for _, manifest := range manifests {
-		groupName := defaultUserGroup
+		groupsInExtra := defaultGroups
 
 		if value, ok := manifest.Extra[userGroupKey]; ok {
-			groupName = value
+			groupsInExtra = strings.Split(value, userGroupsSplitSep)
 		}
 
-		if groupName == userGroup {
+		if stringSliceContainsAny(groupsInExtra, userGroups) {
 			matches = append(matches, manifest)
-		} else if groupName == defaultUserGroup {
+		} else if stringSliceContainsAny(groupsInExtra, defaultGroups) {
 			defaults = append(defaults, manifest)
 		}
 	}
@@ -149,7 +163,7 @@ func (cache *AppManifestCache) GenerateMetadata(param GenMetadataParam) *Metadat
 
 	cache.ServiceManifests.Range(func(key, value interface{}) bool {
 		serviceName := key.(string)
-		matches, defaults := filterUserManifests(value.([]*AppManifest), param.UserGroup)
+		matches, defaults := filterUserManifests(value.([]*AppManifest), param.UserGroups)
 		manifests := defaults
 
 		if len(matches) > 0 {

@@ -28,6 +28,7 @@ const (
 	userGroupKey               = "userGroup"
 	testerUserGroup            = "tester"
 	defaultUserGroup           = ""
+	userGroupsSplitSep         = ","
 )
 
 var manifestFileNameRegexp = regexp.MustCompile(`^rmf-manifest([.\-_].+)?\.json$`)
@@ -186,8 +187,8 @@ func main() {
 	metadataRouterGroup := engine.Group("/api/metadata").Use(sessionMiddleware)
 
 	metadataRouterGroup.GET("/info", func(c *gin.Context) {
-		userGroup := getUserGroup(c)
-		info := cache.GenerateMetadata(GenMetadataParam{userGroup, true})
+		userGroups := getUserGroups(c)
+		info := cache.GenerateMetadata(GenMetadataParam{userGroups, true})
 
 		c.JSONP(http.StatusOK, &Metadata{
 			Apps:  info.OtherApps,
@@ -225,9 +226,14 @@ func main() {
 	userRouterGroup := engine.Group("/api/user").Use(sessionMiddleware)
 
 	userRouterGroup.GET("/is-tester", func(c *gin.Context) {
-		//session.Start(context.Background(), c.Writer, c.Request)
+		isTester := false
 
-		isTester := getUserGroup(c) == testerUserGroup
+		for _, group := range getUserGroups(c) {
+			if group == testerUserGroup {
+				isTester = true
+			}
+		}
+
 		c.JSON(http.StatusOK, isTester)
 	})
 
@@ -244,15 +250,7 @@ func main() {
 			userGroup = defaultUserGroup
 		}
 
-		store := sessionStoreFromContext(c)
-
-		if store == nil {
-			c.Status(http.StatusInternalServerError)
-			return
-		}
-
-		store.Set(userGroupKey, userGroup)
-		err := store.Save()
+		err := setUserGroups(c, []string{userGroup})
 
 		if err != nil {
 			c.AbortWithError(http.StatusInternalServerError, err)
@@ -271,8 +269,8 @@ func main() {
 
 	// SPA
 	engine.NoRoute(sessionMiddleware, func(c *gin.Context) {
-		userGroup := getUserGroup(c)
-		info := cache.GenerateMetadata(GenMetadataParam{userGroup, true})
+		userGroups := getUserGroups(c)
+		info := cache.GenerateMetadata(GenMetadataParam{userGroups, true})
 		// fmt.Printf("INFO %+v\n", info)
 		userAgent := c.Request.UserAgent()
 		HTML, pushLink := info.GenerateIndexHTML(userAgent)

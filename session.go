@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/gin-gonic/gin"
@@ -17,21 +18,24 @@ func NewSessionMiddleware(opt ...session.Option) gin.HandlerFunc {
 	manager := session.NewManager(opt...)
 
 	return func(ctx *gin.Context) {
-		// cookie, err := ctx.Cookie(sessionCookieName)
-		// fmt.Printf("[Session Cookie IN]: %v\n", cookie)
-
 		ctx.Set(sessionManagerKey, manager)
 		store, err := manager.Start(context.Background(), ctx.Writer, ctx.Request)
+
+		if err != nil {
+			// reset cookie and restart session (such as in case: err == session.ErrInvalidSessionID)
+			ctx.Request.Header.Del("Cookie")
+			store, err = manager.Start(context.Background(), ctx.Writer, ctx.Request)
+		}
 
 		if err != nil {
 			log.Printf("[ERROR] Session start:  %+v\n", err)
 		}
 
-		ctx.Set(sessionStoreKey, store)
-		ctx.Next()
+		if store != nil {
+			ctx.Set(sessionStoreKey, store)
+		}
 
-		// fmt.Printf("[Session ID]: %+v\n", store.SessionID())
-		// fmt.Printf("[Session Cookie OUT]: %v\n", ctx.Writer.Header().Get("Set-Cookie"))
+		ctx.Next()
 	}
 }
 
@@ -59,18 +63,29 @@ func createSessionMiddleware() gin.HandlerFunc {
 	)
 }
 
-func getUserGroup(c *gin.Context) string {
+func getUserGroups(c *gin.Context) []string {
 	store := sessionStoreFromContext(c)
 
 	if store == nil {
-		return defaultUserGroup
+		return []string{defaultUserGroup}
 	}
 
 	userGroup, ok := store.Get(userGroupKey)
 
 	if ok {
-		return userGroup.(string)
+		return userGroup.([]string)
 	}
 
-	return defaultUserGroup
+	return []string{defaultUserGroup}
+}
+
+func setUserGroups(c *gin.Context, groups []string) error {
+	store := sessionStoreFromContext(c)
+
+	if store == nil {
+		return fmt.Errorf("No session for the user")
+	}
+
+	store.Set(userGroupKey, groups)
+	return store.Save()
 }
