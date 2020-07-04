@@ -80,7 +80,7 @@ func (manifest *AppManifest) ConvertToMetadataApp() *MetadataApp {
 		Dependencies: manifest.Dependencies,
 		Entries:      manifest.Entrypoints,
 		Renders:      manifest.Renders,
-		Extra:        manifest.Extra,
+		Extra:        globalSiteConfig.SafeExtra(manifest.Extra),
 	}
 
 	return &app

@@ -33,30 +33,9 @@ const (
 
 var manifestFileNameRegexp = regexp.MustCompile(`^rmf-manifest([.\-_].+)?\.json$`)
 
-var listenAddress = "127.0.0.1:8080"
-var startupInitDir = "."
-var serveStaticFiles = true
 var siteConfigFile = ""
 
 func init() {
-	addr := os.Getenv("RMF_LISTEN_ADDRESS")
-
-	if addr != "" {
-		listenAddress = addr
-	}
-
-	dir := os.Getenv("RMF_STARTUP_INIT_DIR")
-
-	if dir != "" {
-		startupInitDir = dir
-	}
-
-	serveStatic := os.Getenv("RMF_SERVE_STATIC_FILES")
-
-	if serveStatic != "" {
-		serveStaticFiles = serveStatic != "false"
-	}
-
 	configFile := os.Getenv("RMF_SITE_CONFIG_FILE")
 
 	if configFile != "" {
@@ -65,24 +44,8 @@ func init() {
 }
 
 func parseFlags() {
-	listeningAddressFlag := flag.String("RMF_LISTEN_ADDRESS", "", "Server listening address")
-	startupInitDirFlag := flag.String("RMF_STARTUP_INIT_DIR", "", "Search micro frontend manifests in the dir")
-	serveStaticFileFlag := flag.String("RMF_SERVE_STATIC_FILES", "", "Blog updating script file")
-	configFileFlag := flag.String("RMF_SITE_CONFIG_FILE", "", "Site's config form YAML file")
-
+	configFileFlag := flag.String("RMF_SITE_CONFIG_FILE", "", "Site's config from YAML file")
 	flag.Parse()
-
-	if *listeningAddressFlag != "" {
-		listenAddress = *listeningAddressFlag
-	}
-
-	if *startupInitDirFlag != "" {
-		startupInitDir = *startupInitDirFlag
-	}
-
-	if *serveStaticFileFlag != "" {
-		serveStaticFiles = *serveStaticFileFlag != "false"
-	}
 
 	if *configFileFlag != "" {
 		siteConfigFile = *configFileFlag
@@ -168,7 +131,9 @@ func main() {
 		LoadSiteConfig(siteConfigFile)
 	}
 
-	walkAppsResult := walkAppFiles(startupInitDir)
+	globalSiteConfig.UpdateExtraKeysHiddenMap()
+
+	walkAppsResult := walkAppFiles(globalSiteConfig.StartupInitDir)
 	// fmt.Printf("WalkAppsResult: %v\", walkAppsResult)
 	cache := NewAppManifestCache()
 
@@ -176,7 +141,7 @@ func main() {
 		cache.LoadAppManifest(filename)
 	}
 
-	cache.CacheFrameworkRuntimes(startupInitDir)
+	cache.CacheFrameworkRuntimes(globalSiteConfig.StartupInitDir)
 
 	// fmt.Printf("Cache ServiceManifests: %+v\n", cache.ServiceManifests)
 	// fmt.Printf("Cache FrameworkRuntimes: %+v\n", cache.FrameworkRuntimes)
@@ -198,7 +163,7 @@ func main() {
 
 		c.JSONP(http.StatusOK, &Metadata{
 			Apps:  info.OtherApps,
-			Extra: globalSiteConfig.Extra,
+			Extra: globalSiteConfig.SafeExtra(globalSiteConfig.Extra),
 		})
 	})
 
@@ -266,11 +231,11 @@ func main() {
 		c.Status(http.StatusOK)
 	})
 
-	if serveStaticFiles {
+	if globalSiteConfig.EnableServeStatic {
 		// Fix invalid MIME type in windows
 		mime.AddExtensionType(".js", "text/javascript")
 
-		serveDirsAndFiles(engine, &walkAppsResult, startupInitDir)
+		serveDirsAndFiles(engine, &walkAppsResult, globalSiteConfig.StartupInitDir)
 	}
 
 	// SPA
@@ -288,6 +253,6 @@ func main() {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(HTML))
 	})
 
-	fmt.Println("Serve on: ", listenAddress)
-	engine.Run(listenAddress)
+	fmt.Println("Serve on: ", globalSiteConfig.ListenAddress)
+	engine.Run(globalSiteConfig.ListenAddress)
 }

@@ -29,6 +29,10 @@ htmlMiddle: >-
 htmlEnd: >-
   </body></html>
 
+listenAddress: 127.0.0.1:8080
+startupInitDir: '.'
+enableServeStatic: true
+
 serveStaticFiles:
   - 404.html
   - favicon.ico
@@ -40,3 +44,6 @@ serveStaticFiles:
 serveAllInDir: false
 
 sessionSign: ""
+extraKeysHidden:
+  - userGroup
+  - actPercent
