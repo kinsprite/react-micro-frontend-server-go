@@ -121,6 +121,27 @@ func readRuntimeContent(baseDir string, entry string) (string, error) {
 	return string(content[:]), nil
 }
 
+func filterUserManifests(manifests []*AppManifest, userGroup string) (matches []*AppManifest, defaults []*AppManifest) {
+	matches = []*AppManifest{}
+	defaults = []*AppManifest{}
+
+	for _, manifest := range manifests {
+		groupName := defaultUserGroup
+
+		if value, ok := manifest.Extra[userGroupKey]; ok {
+			groupName = value
+		}
+
+		if groupName == userGroup {
+			matches = append(matches, manifest)
+		} else if groupName == defaultUserGroup {
+			defaults = append(defaults, manifest)
+		}
+	}
+
+	return matches, defaults
+}
+
 // GenerateMetadata Generate Metadata for user request
 func (cache *AppManifestCache) GenerateMetadata(param GenMetadataParam) *MetadataInfoForRequest {
 	info := &MetadataInfoForRequest{}
@@ -128,7 +149,12 @@ func (cache *AppManifestCache) GenerateMetadata(param GenMetadataParam) *Metadat
 
 	cache.ServiceManifests.Range(func(key, value interface{}) bool {
 		serviceName := key.(string)
-		manifests := value.([]*AppManifest)
+		matches, defaults := filterUserManifests(value.([]*AppManifest), param.UserGroup)
+		manifests := defaults
+
+		if len(matches) > 0 {
+			manifests = matches
+		}
 
 		mLen := len(manifests)
 

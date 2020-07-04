@@ -63,7 +63,7 @@ func getUserGroup(c *gin.Context) string {
 	store := sessionStoreFromContext(c)
 
 	if store == nil {
-		return ""
+		return defaultUserGroup
 	}
 
 	userGroup, ok := store.Get(userGroupKey)
@@ -72,5 +72,5 @@ func getUserGroup(c *gin.Context) string {
 		return userGroup.(string)
 	}
 
-	return ""
+	return defaultUserGroup
 }

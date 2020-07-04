@@ -26,7 +26,8 @@ const (
 	frameworkServiceName       = "framework"
 	frameworkRuntimeFilePrefix = "runtime-framework."
 	userGroupKey               = "userGroup"
-	testerGroup                = "tester"
+	testerUserGroup            = "tester"
+	defaultUserGroup           = ""
 )
 
 var manifestFileNameRegexp = regexp.MustCompile(`^rmf-manifest([.\-_].+)?\.json$`)
@@ -226,7 +227,7 @@ func main() {
 	userRouterGroup.GET("/is-tester", func(c *gin.Context) {
 		//session.Start(context.Background(), c.Writer, c.Request)
 
-		isTester := getUserGroup(c) == testerGroup
+		isTester := getUserGroup(c) == testerUserGroup
 		c.JSON(http.StatusOK, isTester)
 	})
 
@@ -237,10 +238,10 @@ func main() {
 			return
 		}
 
-		userGroup := testerGroup
+		userGroup := testerUserGroup
 
 		if !isTester {
-			userGroup = ""
+			userGroup = defaultUserGroup
 		}
 
 		store := sessionStoreFromContext(c)
