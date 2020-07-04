@@ -155,6 +155,12 @@ func pathExists(path string) (bool, error) {
 	return false, err
 }
 
+func noCacheMiddleware(ctx *gin.Context) {
+	ctx.Header("Cache-Control", "no-cache")
+	ctx.Header("Expires", "Thu, 01 Jan 1970 00:00:01 GMT")
+	ctx.Next()
+}
+
 func main() {
 	parseFlags()
 
@@ -178,13 +184,13 @@ func main() {
 	engine := gin.Default()
 	sessionMiddleware := createSessionMiddleware()
 
-	engine.GET("/healthz", func(c *gin.Context) {
+	engine.GET("/healthz", noCacheMiddleware, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "OK",
 		})
 	})
 
-	metadataRouterGroup := engine.Group("/api/metadata").Use(sessionMiddleware)
+	metadataRouterGroup := engine.Group("/api/metadata").Use(sessionMiddleware, noCacheMiddleware)
 
 	metadataRouterGroup.GET("/info", func(c *gin.Context) {
 		userGroups := getUserGroups(c)
@@ -223,7 +229,7 @@ func main() {
 		})
 	})
 
-	userRouterGroup := engine.Group("/api/user").Use(sessionMiddleware)
+	userRouterGroup := engine.Group("/api/user").Use(sessionMiddleware, noCacheMiddleware)
 
 	userRouterGroup.GET("/is-tester", func(c *gin.Context) {
 		isTester := false
@@ -268,7 +274,7 @@ func main() {
 	}
 
 	// SPA
-	engine.NoRoute(sessionMiddleware, func(c *gin.Context) {
+	engine.NoRoute(sessionMiddleware, noCacheMiddleware, func(c *gin.Context) {
 		userGroups := getUserGroups(c)
 		info := cache.GenerateMetadata(GenMetadataParam{userGroups, true})
 		// fmt.Printf("INFO %+v\n", info)
