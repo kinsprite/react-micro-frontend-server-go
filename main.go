@@ -212,6 +212,17 @@ func main() {
 		})
 	})
 
+	metadataRouterGroup.GET("/query-app-versions", func(c *gin.Context) {
+		appID := c.Query("id")
+
+		if appID == "" {
+			c.AbortWithError(http.StatusBadRequest, fmt.Errorf("Missing APP ID"))
+			return
+		}
+
+		cache.QueryAppVersions(c, appID)
+	})
+
 	userRouterGroup := engine.Group("/api/user").Use(sessionMiddleware, noCacheMiddleware)
 
 	userRouterGroup.GET("/is-tester", func(c *gin.Context) {

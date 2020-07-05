@@ -6,11 +6,14 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"net/http"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GenMetadataParam the param for GenerateMetadataParam()
@@ -32,7 +35,7 @@ type AppVersionMap map[string]*AppManifest
 type AppManifestCache struct {
 	FrameworkRuntimes sync.Map // entry URL to runtime JS contents, as map[key string]string
 	ServiceManifests  sync.Map // serviceName to AppVersionMap, as map[key string]AppVersionMap
-	ServiceMutexes    sync.Map // serviceName to *Mutex, for per app's Install, Uninstall and Update
+	ServiceMutexes    sync.Map // serviceName to *RWMutex, for per app's Query or Changing
 }
 
 // NewAppManifestCache new an AppManifestCache
@@ -226,6 +229,15 @@ func (cache *AppManifestCache) GenerateMetadata(param GenMetadataParam) *Metadat
 
 	cache.ServiceManifests.Range(func(key, value interface{}) bool {
 		serviceName := key.(string)
+
+		// lock AppVersionMap when using it's content
+		mtxValue, _ := cache.ServiceMutexes.LoadOrStore(serviceName, &sync.RWMutex{})
+		mtx := mtxValue.(*sync.RWMutex)
+
+		mtx.RLock()
+		defer mtx.RUnlock()
+
+		// filter app versions for the user
 		matches, defaults := filterUserManifests(value.(AppVersionMap), param.UserGroups)
 		manifests := defaults
 
@@ -285,8 +297,8 @@ func (cache *AppManifestCache) AppendFrameworkAppInfo(
 // InstallAppVersion Install an new App version after the static files have been deployed.
 func (cache *AppManifestCache) InstallAppVersion(app *AppInstallParam) bool {
 	// lock AppVersionMap when changing it's content
-	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.Manifest.ServiceName, &sync.Mutex{})
-	mtx := mtxValue.(*sync.Mutex)
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.Manifest.ServiceName, &sync.RWMutex{})
+	mtx := mtxValue.(*sync.RWMutex)
 
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -327,8 +339,8 @@ func (cache *AppManifestCache) UninstallAppVersion(app *AppUninstallParam) bool 
 	appManifests := value.(AppVersionMap)
 
 	// lock AppVersionMap when changing it's content
-	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.ServiceName, &sync.Mutex{})
-	mtx := mtxValue.(*sync.Mutex)
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.ServiceName, &sync.RWMutex{})
+	mtx := mtxValue.(*sync.RWMutex)
 
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -383,8 +395,8 @@ func (cache *AppManifestCache) UpdateOneAppExtra(serviceName string, params []*A
 	appVersionMap := value.(AppVersionMap)
 
 	// lock AppVersionMap when changing it's content
-	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(serviceName, &sync.Mutex{})
-	mtx := mtxValue.(*sync.Mutex)
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(serviceName, &sync.RWMutex{})
+	mtx := mtxValue.(*sync.RWMutex)
 
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -406,4 +418,25 @@ func (cache *AppManifestCache) UpdateOneAppExtra(serviceName string, params []*A
 	}
 
 	return hasOK
+}
+
+// QueryAppVersions query app versions by admin. We lock AppVersionMap until json.Marshal() finished
+func (cache *AppManifestCache) QueryAppVersions(ctx *gin.Context, serviceName string) {
+	value, ok := cache.ServiceManifests.Load(serviceName)
+
+	if !ok {
+		ctx.AbortWithError(http.StatusBadRequest, fmt.Errorf("Invalid APP ID"))
+		return
+	}
+
+	appVersionMap := value.(AppVersionMap)
+
+	// lock AppVersionMap when using it's content
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(serviceName, &sync.RWMutex{})
+	mtx := mtxValue.(*sync.RWMutex)
+
+	mtx.RLock()
+	defer mtx.RUnlock()
+
+	ctx.JSON(http.StatusOK, appVersionMap)
 }
