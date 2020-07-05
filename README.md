@@ -9,3 +9,4 @@ A Server for React Micro Frontends, process frontend SPA request and metadata AP
 * Custom site config: HTML template, user default route.
 * Serve static files. It is a easy way to deploy our micro frontends on laptop.
 * Link preload headers. We can use server push (HTTP/2) with nginx `http2_push_preload on`.
+* A/B testing control.
