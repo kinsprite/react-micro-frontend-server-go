@@ -25,11 +25,14 @@ type AppFilterItem struct {
 	ActivationPercent int
 }
 
+// AppVersionMap map the version by `{GitRevision.GetVersionKey()}`
+type AppVersionMap map[string]*AppManifest
+
 // AppManifestCache AppManifest Cache
 type AppManifestCache struct {
 	FrameworkRuntimes sync.Map // entry URL to runtime JS contents, as map[key string]string
-	ServiceManifests  sync.Map // serviceName to []*AppManifest, as map[key string] []*AppManifest
-	ServiceMutexes    sync.Map // serviceName to *Mutex, for per app's Install and Uninstall
+	ServiceManifests  sync.Map // serviceName to AppVersionMap, as map[key string]AppVersionMap
+	ServiceMutexes    sync.Map // serviceName to *Mutex, for per app's Install, Uninstall and Update
 }
 
 // NewAppManifestCache new an AppManifestCache
@@ -54,15 +57,16 @@ func (cache *AppManifestCache) LoadAppManifest(filename string) {
 		return
 	}
 
-	value, ok := cache.ServiceManifests.Load(manifest.ServiceName)
+	var appManifests AppVersionMap
 
-	appManifests := []*AppManifest{}
-
-	if ok {
-		appManifests = value.([]*AppManifest)
+	if value, ok := cache.ServiceManifests.Load(manifest.ServiceName); ok {
+		appManifests = value.(AppVersionMap)
+	} else {
+		appManifests = AppVersionMap{}
+		cache.ServiceManifests.Store(manifest.ServiceName, appManifests)
 	}
 
-	cache.ServiceManifests.Store(manifest.ServiceName, append(appManifests, &manifest))
+	appManifests[manifest.GitRevision.GetVersionKey()] = &manifest
 	// fmt.Printf("manifest: %+v\n", manifest)
 }
 
@@ -75,7 +79,7 @@ func (cache *AppManifestCache) CacheFrameworkRuntimes(baseDir string) {
 		return
 	}
 
-	appManifests := value.([]*AppManifest)
+	appManifests := value.(AppVersionMap)
 
 	for _, manifest := range appManifests {
 		for _, entry := range manifest.Entrypoints {
@@ -159,7 +163,7 @@ func calcActivationPercent(manifest *AppManifest) int {
 	return 100
 }
 
-func filterUserManifests(manifests []*AppManifest, userGroups []string) (
+func filterUserManifests(manifests AppVersionMap, userGroups []string) (
 	matches []AppFilterItem, defaults []AppFilterItem) {
 	matches = []AppFilterItem{}
 	defaults = []AppFilterItem{}
@@ -222,7 +226,7 @@ func (cache *AppManifestCache) GenerateMetadata(param GenMetadataParam) *Metadat
 
 	cache.ServiceManifests.Range(func(key, value interface{}) bool {
 		serviceName := key.(string)
-		matches, defaults := filterUserManifests(value.([]*AppManifest), param.UserGroups)
+		matches, defaults := filterUserManifests(value.(AppVersionMap), param.UserGroups)
 		manifests := defaults
 
 		if len(matches) > 0 {
@@ -280,6 +284,7 @@ func (cache *AppManifestCache) AppendFrameworkAppInfo(
 
 // InstallAppVersion Install an new App version after the static files have been deployed.
 func (cache *AppManifestCache) InstallAppVersion(app *AppInstallParam) bool {
+	// lock AppVersionMap when changing it's content
 	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.Manifest.ServiceName, &sync.Mutex{})
 	mtx := mtxValue.(*sync.Mutex)
 
@@ -292,52 +297,48 @@ func (cache *AppManifestCache) InstallAppVersion(app *AppInstallParam) bool {
 	}
 
 	// Save the manifest
+	var appManifests AppVersionMap
 	value, ok := cache.ServiceManifests.Load(app.Manifest.ServiceName)
-	appManifests := []*AppManifest{}
 
 	if ok {
-		// DON'T change the old slice
-		appManifests = append(appManifests, value.([]*AppManifest)...)
+		appManifests = value.(AppVersionMap)
+	} else {
+		appManifests = AppVersionMap{}
 	}
 
-	appManifests = append(appManifests, &app.Manifest)
-	cache.ServiceManifests.Store(app.Manifest.ServiceName, appManifests)
+	version := app.Manifest.GitRevision.GetVersionKey()
+	appManifests[version] = &app.Manifest
+
+	if !ok {
+		cache.ServiceManifests.Store(app.Manifest.ServiceName, appManifests)
+	}
 
 	return true
 }
 
 // UninstallAppVersion Uninstall an deployed App version. NOTE: Leave cache.FrameworkRuntimes unchanged.
 func (cache *AppManifestCache) UninstallAppVersion(app *AppUninstallParam) bool {
-	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.ServiceName, &sync.Mutex{})
-	mtx := mtxValue.(*sync.Mutex)
-
-	mtx.Lock()
-	defer mtx.Unlock()
-
 	value, ok := cache.ServiceManifests.Load(app.ServiceName)
 
 	if !ok {
 		return false
 	}
 
-	appManifests := value.([]*AppManifest)
+	appManifests := value.(AppVersionMap)
 
-	// Find the app by GitRevision
-	isFound := false
-	newManifests := []*AppManifest{}
-	last := 0
+	// lock AppVersionMap when changing it's content
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(app.ServiceName, &sync.Mutex{})
+	mtx := mtxValue.(*sync.Mutex)
 
-	for i, manifest := range appManifests {
-		if manifest.GitRevision.Equal(&app.GitRevision) {
-			isFound = true
-			newManifests = append(newManifests, appManifests[last:i]...)
-			last = i + 1
-		}
-	}
+	mtx.Lock()
+	defer mtx.Unlock()
+
+	// Find the version and delete it
+	version := app.GitRevision.GetVersionKey()
+	_, isFound := appManifests[version]
 
 	if isFound {
-		newManifests = append(newManifests, appManifests[last:]...)
-		cache.ServiceManifests.Store(app.ServiceName, newManifests)
+		delete(appManifests, version)
 	}
 
 	return isFound
@@ -362,8 +363,8 @@ func (cache *AppManifestCache) UpdateAppExtra(params []AppUpdateExtraParam) bool
 	// update each App's Extra
 	hasOK := false
 
-	for serviceName, value := range serviceMap {
-		if cache.UpdateOneAppExtra(serviceName, value) {
+	for serviceName, params := range serviceMap {
+		if cache.UpdateOneAppExtra(serviceName, params) {
 			hasOK = true
 		}
 	}
@@ -373,28 +374,20 @@ func (cache *AppManifestCache) UpdateAppExtra(params []AppUpdateExtraParam) bool
 
 // UpdateOneAppExtra Update one deployed App's Extra
 func (cache *AppManifestCache) UpdateOneAppExtra(serviceName string, params []*AppUpdateExtraParam) bool {
-	// lock each service
-	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(serviceName, &sync.Mutex{})
-	mtx := mtxValue.(*sync.Mutex)
-
-	mtx.Lock()
-	defer mtx.Unlock()
-
 	value, ok := cache.ServiceManifests.Load(serviceName)
 
 	if !ok {
 		return false
 	}
 
-	appManifests := value.([]*AppManifest)
+	appVersionMap := value.(AppVersionMap)
 
-	// map the version by `{GitRevision.Tag}_${GitRevision.Short}`
-	appVersionMap := map[string]*AppManifest{}
+	// lock AppVersionMap when changing it's content
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(serviceName, &sync.Mutex{})
+	mtx := mtxValue.(*sync.Mutex)
 
-	for _, app := range appManifests {
-		version := app.GitRevision.GetVersionKey()
-		appVersionMap[version] = app
-	}
+	mtx.Lock()
+	defer mtx.Unlock()
 
 	// update each version in params
 	hasOK := false
