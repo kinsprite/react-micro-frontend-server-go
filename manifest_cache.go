@@ -342,3 +342,75 @@ func (cache *AppManifestCache) UninstallAppVersion(app *AppUninstallParam) bool 
 
 	return isFound
 }
+
+// UpdateAppExtra Update multi deployed Apps' Extra
+func (cache *AppManifestCache) UpdateAppExtra(params []AppUpdateExtraParam) bool {
+	// group params by service name (as App ID)
+	serviceMap := map[string][]*AppUpdateExtraParam{}
+
+	for _, p := range params {
+		slice, ok := serviceMap[p.ServiceName]
+
+		if !ok {
+			slice = []*AppUpdateExtraParam{}
+		}
+
+		slice = append(slice, &p)
+		serviceMap[p.ServiceName] = slice
+	}
+
+	// update each App's Extra
+	hasOK := false
+
+	for serviceName, value := range serviceMap {
+		if cache.UpdateOneAppExtra(serviceName, value) {
+			hasOK = true
+		}
+	}
+
+	return hasOK
+}
+
+// UpdateOneAppExtra Update one deployed App's Extra
+func (cache *AppManifestCache) UpdateOneAppExtra(serviceName string, params []*AppUpdateExtraParam) bool {
+	// lock each service
+	mtxValue, _ := cache.ServiceMutexes.LoadOrStore(serviceName, &sync.Mutex{})
+	mtx := mtxValue.(*sync.Mutex)
+
+	mtx.Lock()
+	defer mtx.Unlock()
+
+	value, ok := cache.ServiceManifests.Load(serviceName)
+
+	if !ok {
+		return false
+	}
+
+	appManifests := value.([]*AppManifest)
+
+	// map the version by `{GitRevision.Tag}_${GitRevision.Short}`
+	appVersionMap := map[string]*AppManifest{}
+
+	for _, app := range appManifests {
+		version := app.GitRevision.GetVersionKey()
+		appVersionMap[version] = app
+	}
+
+	// update each version in params
+	hasOK := false
+
+	for _, param := range params {
+		version := param.GitRevision.GetVersionKey()
+
+		if app, ok := appVersionMap[version]; ok {
+			// Merge each K-V, not replace all
+			for key, value := range param.Extra {
+				app.Extra[key] = value
+			}
+
+			hasOK = true
+		}
+	}
+
+	return hasOK
+}

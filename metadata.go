@@ -68,9 +68,21 @@ type AppUninstallParam struct {
 	ServiceName string      `json:"serviceName"`
 }
 
+// AppUpdateExtraParam the param when update the app's Extra
+type AppUpdateExtraParam struct {
+	GitRevision GitRevision   `json:"gitRevision"`
+	ServiceName string        `json:"serviceName"`
+	Extra       MetadataExtra `json:"extra"`
+}
+
 // Equal Equal
 func (git *GitRevision) Equal(other *GitRevision) bool {
 	return git.Tag == other.Tag && git.Short == other.Short
+}
+
+// GetVersionKey convert as a key string
+func (git *GitRevision) GetVersionKey() string {
+	return git.Tag + "_" + git.Short
 }
 
 // ConvertToMetadataApp Convert to MetadataApp

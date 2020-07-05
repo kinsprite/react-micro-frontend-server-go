@@ -199,6 +199,19 @@ func main() {
 		})
 	})
 
+	metadataRouterGroup.POST("/update-app-extra", func(c *gin.Context) {
+		var params []AppUpdateExtraParam
+
+		if err := c.BindJSON(&params); err != nil {
+			return
+		}
+
+		ok := cache.UpdateAppExtra(params)
+		c.JSON(http.StatusOK, gin.H{
+			"update": ok,
+		})
+	})
+
 	userRouterGroup := engine.Group("/api/user").Use(sessionMiddleware, noCacheMiddleware)
 
 	userRouterGroup.GET("/is-tester", func(c *gin.Context) {
